@@ -242,6 +242,34 @@ class TestTikuLocalHttpApi(TikuTestCase):
         tiku = build_tiku(self.base_conf(local_api="http://127.0.0.1:9/query", local_api_timeout="1"))
         self.assertIsNone(tiku.query({"title": "接口题目", "type": "single", "options": "A. 甲"}))
 
+    def test_http_api_garbage_response_is_not_fatal(self):
+        """自建接口返回非 JSON / 只有状态位时, 必须优雅降级而不是抛异常。"""
+        with LocalTikuServer({"code": 1, "msg": "ok", "plat": 0}) as server:
+            tiku = build_tiku(self.base_conf(local_api=server.url))
+            self.assertIsNone(tiku.query({"title": "接口题目", "type": "single", "options": "A. 甲"}))
+
+    def test_http_api_plain_text_response_is_not_fatal(self):
+        class RawHandler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                body = b"not-json-at-all"
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), RawHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            tiku = build_tiku(self.base_conf(local_api=f"http://127.0.0.1:{server.server_address[1]}/query"))
+            self.assertIsNone(tiku.query({"title": "接口题目", "type": "single", "options": "A. 甲"}))
+        finally:
+            server.shutdown()
+            server.server_close()
+
 
 class TestFallbackChain(TikuTestCase):
     def test_falls_back_to_second_provider(self):
