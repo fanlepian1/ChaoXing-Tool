@@ -24,10 +24,20 @@ def check_multiple(answer):
     return False
 
 
+# 判断题的通用同义词(内置兜底): 题库返回 true/false、对/错、√/× 都应该能识别,
+# 不该依赖用户在配置里把每一种写法都列全。
+BUILTIN_TRUE_SYNONYMS = ("true", "t", "yes", "y", "1", "正确", "对", "√", "是")
+BUILTIN_FALSE_SYNONYMS = ("false", "f", "no", "n", "0", "错误", "错", "×", "否", "不对", "不正确")
+
+
 def check_judgement(answer, true_list, false_list):
-    if answer in true_list:
+    text = str(answer).strip()
+    lowered = text.lower()
+    true_pool = {str(item).strip().lower() for item in (true_list or [])} | set(BUILTIN_TRUE_SYNONYMS)
+    false_pool = {str(item).strip().lower() for item in (false_list or [])} | set(BUILTIN_FALSE_SYNONYMS)
+    if lowered in true_pool:
         return 1
-    elif answer in false_list:
+    elif lowered in false_pool:
         return 0
     else:
         return -1

@@ -186,6 +186,15 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(text_bank.read_text(encoding="utf-8"), original)
 
+    def test_import_sync_cache_makes_curated_answer_effective(self):
+        """回归: Tiku.query 先查缓存, 所以改了题库要用 --sync-cache 让新答案立刻生效。"""
+        src = self.tmpdir / "src.json"
+        src.write_text(json.dumps({"题目Q": "B"}, ensure_ascii=False), encoding="utf-8")
+        self.cache.write_text(json.dumps({"题目Q": "A"}, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(tiku_tool.main(["import", "--bank", str(self.bank), "--input", str(src),
+                                         "--sync-cache", "--cache", str(self.cache)]), 0)
+        self.assertEqual(json.loads(self.cache.read_text(encoding="utf-8"))["题目Q"], "B")
+
     def test_cache_stats_and_clear(self):
         self.cache.write_text(json.dumps({"题目": "A"}, ensure_ascii=False), encoding="utf-8")
         self.assertEqual(tiku_tool.main(["cache", "--cache", str(self.cache), "stats"]), 0)

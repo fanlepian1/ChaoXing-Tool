@@ -16,7 +16,7 @@ import requests
 from openai import OpenAI
 from urllib3 import disable_warnings, exceptions
 
-from api.answer_check import check_answer
+from api.answer_check import BUILTIN_FALSE_SYNONYMS, BUILTIN_TRUE_SYNONYMS, check_answer
 from api.logger import logger
 from api.tiku_bank import (
     DEFAULT_BANK_PATH,
@@ -143,9 +143,9 @@ class CacheDAO:
             self._write_cache(data)
 
 
-# 判断题默认选项表(配置文件未提供时兜底)
-DEFAULT_TRUE_LIST = ['正确', '对', '√', '是', 'true', 't', 'yes', 'y', '1']
-DEFAULT_FALSE_LIST = ['错误', '错', '×', '否', '不对', '不正确', 'false', 'f', 'no', 'n', '0']
+# 判断题默认选项表(配置文件未提供时兜底), 与 answer_check 的内置同义词共用一份定义
+DEFAULT_TRUE_LIST = list(BUILTIN_TRUE_SYNONYMS)
+DEFAULT_FALSE_LIST = list(BUILTIN_FALSE_SYNONYMS)
 
 # TODO: 重构此部分代码，将此类改为抽象类，加载题库方法改为静态方法，禁止直接初始化此类
 class Tiku:

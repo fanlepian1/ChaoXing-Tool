@@ -151,6 +151,10 @@ def cmd_import(args) -> int:
         return 1
     print(f"[tiku_tool] 题库已保存: {output} ({before} -> {len(bank)} 条, "
           f"跳过 {total_skipped_lines} 行)")
+    if args.sync_cache:
+        synced = bank.export_to_cache(args.cache)
+        print(f"[tiku_tool] 已把题库答案写入缓存: {args.cache}(更新 {synced} 条), "
+              f"避免旧缓存继续优先返回旧答案")
     return 0
 
 
@@ -245,6 +249,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="auto: .json 或内容像 JSON 时按 JSON 解析, 其余按纯文本; text 可强制按文本")
     p.add_argument("--output", "-o", default=None, help="输出题库文件(默认覆盖 --bank)")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--sync-cache", action="store_true",
+                   help="导入后把题库答案写进答案缓存(题库优先): 手动改过答案时用它让改动立刻生效")
     p.set_defaults(func=cmd_import)
 
     p = sub.add_parser("merge", parents=[common], help="合并多个题库文件")

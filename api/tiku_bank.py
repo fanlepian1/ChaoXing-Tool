@@ -706,6 +706,40 @@ class LocalBank:
             return empty
         return self.merge(payload, source=source or f"cache:{path.name}", overwrite=overwrite)
 
+    def export_to_cache(self, cache_path: Any = DEFAULT_CACHE_PATH, overwrite: bool = True) -> int:
+        """把题库里的答案写进答案缓存(题库优先)。
+
+        为什么需要: Tiku.query 是先查缓存的, 所以你手动改了题库里的答案后, 旧缓存还会被优先使用。
+        改完题库跑一次 `tiku_tool import --sync-cache` 就能让新答案立刻生效。
+        返回写入(或更新)的条数。
+        """
+        path = Path(cache_path)
+        payload: dict = {}
+        if path.is_file():
+            raw = _read_text(path)
+            if looks_like_json(raw):
+                try:
+                    loaded = json.loads(raw or "{}")
+                    if isinstance(loaded, dict):
+                        payload = loaded
+                except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+                    payload = {}
+        written = 0
+        with self._lock:
+            for entry in self._entries:
+                title = entry["question"]
+                if not overwrite and title in payload:
+                    continue
+                if payload.get(title) != entry["answer"]:
+                    written += 1
+                payload[title] = entry["answer"]
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(payload, ensure_ascii=False, indent=4), encoding="utf-8")
+        except OSError:
+            return 0
+        return written
+
     def save(self, path: Any = None, indent: int = 2, allow_failed_overwrite: bool = False) -> Optional[str]:
         """保存题库到文件(默认第一个路径), 返回写入的文件路径; 因保护而拒绝写入时返回 None。
 

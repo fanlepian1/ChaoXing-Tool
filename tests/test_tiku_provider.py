@@ -376,6 +376,15 @@ class TestAnswerNormalization(TikuTestCase):
         self.assertEqual(tiku.query({"title": "另一题干", "type": "judgement",
                                      "options": "A. 正确\nB. 错误"}), "正确")
 
+    def test_judgement_with_english_options(self):
+        """回归: 选项是英文 True/False 时, 字母答案展开成 False 必须仍能通过类型校验。"""
+        self.write_bank({"英文判断题干": "B"})
+        tiku = build_tiku(self.base_conf())
+        answer = tiku.query({"title": "英文判断题干", "type": "judgement",
+                             "options": "A. True\nB. False"})
+        self.assertEqual(answer, "False")
+        self.assertFalse(tiku.judgement_select(answer))
+
     def test_wrong_letters_are_rejected_by_type_check(self):
         """判断题拿到 A/B 这类选项字母时必须判为不合法(不是"正确/错误")。"""
         self.write_bank({"判断题干": "C"})
