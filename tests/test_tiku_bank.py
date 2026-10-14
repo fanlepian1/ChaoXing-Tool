@@ -361,8 +361,9 @@ class TestLocalBank(unittest.TestCase):
         """回归: 自动回写过的错答案必须还能被后来搜对的答案纠正(不能永久锁死)。"""
         bank_path = Path(self.tmp.name) / "auto.json"
         cache_path = Path(self.tmp.name) / "auto-cache.json"
-        bank_path.write_text(json.dumps({"题目Q": {"answer": "A", "source": "cache:cache.json"}},
-                                        ensure_ascii=False), encoding="utf-8")
+        bank_path.write_text(json.dumps(
+            {"题目Q": {"answer": "A", "source": "cache:cache.json", "auto_answer": "A"}},
+            ensure_ascii=False), encoding="utf-8")
         cache_path.write_text(json.dumps({"题目Q": "B"}, ensure_ascii=False), encoding="utf-8")
         bank = LocalBank(paths=[str(bank_path)], fuzzy=False)
         bank.load()
@@ -426,10 +427,16 @@ class TestProvenanceAndSafety(unittest.TestCase):
         self.assertEqual(bank.lookup("题目Q"), "B")
 
     def test_source_prefix_check_is_normalized(self):
-        """回归(low): " Cache:x" / "CACHE:x" 不能被当成非缓存条目而受保护。"""
-        self.assertTrue(LocalBank._can_overwrite({"answer": "A", "source": " Cache:x"}, "auto"))
-        self.assertTrue(LocalBank._can_overwrite({"answer": "A", "source": "CACHE:x"}, "auto"))
+        """回归: 没有 auto_answer 时无法证明"没人动过", 一律不自动覆盖(保护用户数据)。"""
+        # 旧格式(只有 source)不再被自动覆盖: 分不清"系统写的"和"人改过的"
+        self.assertFalse(LocalBank._can_overwrite({"answer": "A", "source": " Cache:x"}, "auto"))
+        self.assertFalse(LocalBank._can_overwrite({"answer": "A", "source": "cache:x"}, "auto"))
         self.assertFalse(LocalBank._can_overwrite({"answer": "A", "source": " import"}, "auto"))
+        # 显式 overwrite=True 仍可覆盖
+        self.assertTrue(LocalBank._can_overwrite({"answer": "A", "source": "cache:x"}, True))
+        # 有 auto_answer: 没被动过可以自动更新, 被动过则保护
+        self.assertTrue(LocalBank._can_overwrite({"answer": "A", "auto_answer": "A"}, "auto"))
+        self.assertFalse(LocalBank._can_overwrite({"answer": "B", "auto_answer": "A"}, "auto"))
 
     def test_export_to_cache_uses_cache_key_format(self):
         """回归(medium): 同步缓存必须用 Tiku.query 读缓存时的同一个键(clean_title 处理后)。"""

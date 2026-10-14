@@ -168,8 +168,9 @@ class TestCommands(unittest.TestCase):
 
     def test_export_auto_corrects_cache_written_answer(self):
         """回归: 缓存已经洗进题库的答案, 后来搜对了必须能自动纠正(auto 语义)。"""
-        self.bank.write_text(json.dumps({"题目Q": {"answer": "A", "source": "cache:cache.json"}},
-                                        ensure_ascii=False), encoding="utf-8")
+        self.bank.write_text(json.dumps(
+            {"题目Q": {"answer": "A", "source": "cache:cache.json", "auto_answer": "A"}},
+            ensure_ascii=False), encoding="utf-8")
         self.cache.write_text(json.dumps({"题目Q": "B"}, ensure_ascii=False), encoding="utf-8")
         self.assertEqual(tiku_tool.main(["export", "--bank", str(self.bank), "--cache", str(self.cache)]), 0)
         data = json.loads(self.bank.read_text(encoding="utf-8"))

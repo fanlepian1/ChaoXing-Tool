@@ -753,8 +753,9 @@ class LocalBank:
         auto_answer = old_entry.get("auto_answer")
         if auto_answer is not None and str(auto_answer).strip():
             return str(old_entry.get("answer", "")).strip() == str(auto_answer).strip()
-        # 判据 2: 老格式文件没有 auto_answer, 只能按来源判断(去空白 + 忽略大小写)
-        return str(old_entry.get("source") or "").strip().lower().startswith("cache:")
+        # 判据 2: 没有 auto_answer(旧版本写出的文件, 或人工维护的条目)时**无法证明没人动过**,
+        # 于是选择保护数据: 不自动覆盖。需要覆盖时用 --overwrite / import / --sync-cache 显式操作。
+        return False
 
     def import_cache(self, cache_path: Any = DEFAULT_CACHE_PATH, source: Optional[str] = None,
                      overwrite: Any = "auto") -> dict:
