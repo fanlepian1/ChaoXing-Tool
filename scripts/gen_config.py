@@ -63,6 +63,10 @@ NOTIFY_ENV_MAP = {
 SECRET_KEYS = {"username", "password", "tokens", "key", "siliconflow_key", "go_authorization",
                "url", "local_api"}
 
+# 模板里的占位值必须被清空: 否则 secrets 没配时会拿着 "xxx" 去登录,
+# 或者把 course_list=xxx,xxx,xxx 当成课程ID, 报一个看不懂的"未找到指定课程ID"
+PLACEHOLDER_KEYS = (("common", "username"), ("common", "password"), ("common", "course_list"))
+
 _HEADER_RE = re.compile(r"^\s*\[([^\]]+)\]\s*$")
 _SETTING_RE = re.compile(r"^\s*([A-Za-z0-9_.\-]+)\s*=")
 
@@ -232,6 +236,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[gen_config] 模板不存在, 使用内置模板: {template_path}", file=sys.stderr)
 
     values = collect_values(env)
+    # 清空模板占位值(保密信息一律只来自环境变量/secrets, 模板里的 xxx 不能进最终配置)
+    for section_key in PLACEHOLDER_KEYS:
+        values.setdefault(section_key, "")
     if ("tiku", "provider") not in values and args.default_provider.strip():
         values[("tiku", "provider")] = args.default_provider.strip()
 

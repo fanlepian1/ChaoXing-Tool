@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """scripts/gen_config.py 的测试: 从环境变量渲染 config.ini。"""
 
 import configparser
@@ -158,6 +158,16 @@ class TestMain(unittest.TestCase):
         parser = configparser.ConfigParser()
         parser.read(self.out, encoding="utf-8")
         self.assertIn("tiku", parser.sections())
+
+    def test_template_placeholders_are_cleared(self):
+        """模板里的 xxx 占位值绝不能进最终配置(否则会拿 XXX 去登录 / 把 xxx 当课程ID)。"""
+        with mock.patch.dict("os.environ", {}, clear=True):
+            gen_config.main(["--template", str(self.template), "--out", str(self.out)])
+        parser = configparser.ConfigParser()
+        parser.read(self.out, encoding="utf-8")
+        self.assertEqual(parser["common"]["username"], "")
+        self.assertEqual(parser["common"]["password"], "")
+        self.assertEqual(parser["common"]["course_list"], "")
 
     def test_env_file_is_loaded(self):
         env_file = self.tmpdir / ".env.local"
