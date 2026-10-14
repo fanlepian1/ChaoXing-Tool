@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -115,6 +116,11 @@ def cmd_stats(args) -> int:
     count = bank.load()
     _report_bank_issues(args)
     if count == 0 and Path(args.bank).is_file():
+        raw = re.sub(r"\s+", "", Path(args.bank).read_text(encoding="utf-8", errors="ignore"))
+        if raw in ("", "{}", "[]", "null"):
+            # 空题库是正常状态(新仓库、或还没跑过一轮), 不是错误
+            print(f"[tiku_tool] 题库为空({args.bank}), 跑一轮后会自动积累题目")
+            return 0
         print(f"[tiku_tool] 警告: {args.bank} 存在但解析出 0 条题目, 请检查文件内容", file=sys.stderr)
         return 1
     info = bank.stats()

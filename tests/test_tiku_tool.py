@@ -258,6 +258,15 @@ class TestCommands(unittest.TestCase):
         data = json.loads(self.bank.read_text(encoding="utf-8"))
         self.assertEqual(len(data), 2)
 
+    def test_stats_on_empty_bank_is_success(self):
+        """空题库是正常状态(新仓库/还没跑过), stats 不该报错——否则 CI 里的摘要步骤会变红。"""
+        self.bank.write_text("{\n}\n", encoding="utf-8")
+        self.assertEqual(tiku_tool.main(["stats", "--bank", str(self.bank)]), 0)
+
+    def test_stats_on_unparseable_bank_is_failure(self):
+        self.bank.write_text("这不是 JSON 也不是文本题库\n随便一行\n", encoding="utf-8")
+        self.assertEqual(tiku_tool.main(["stats", "--bank", str(self.bank)]), 1)
+
     def test_migrate_requires_explicit_cache(self):
         self.bank.write_text(json.dumps({"题目A": {"answer": "A", "source": "cache:cache.json"}},
                                        ensure_ascii=False), encoding="utf-8")

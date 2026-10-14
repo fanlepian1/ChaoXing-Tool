@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 from re import sub
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 import requests
