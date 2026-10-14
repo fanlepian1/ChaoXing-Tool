@@ -50,8 +50,16 @@ class TestResolveTikuConfig(unittest.TestCase):
         self.assertNotIn("TikuAdapter", chain)  # 没配 url 就不该出现
 
     def test_auto_without_credentials(self):
+        """零凭据时的默认链: 离线题库 + 免费公共题库 TikuGo。"""
         conf = main_module.resolve_tiku_config({"provider": "auto"}, None, {})
         self.assertEqual(conf["provider"], "TikuLocal,TikuGo")
+
+    def test_auto_can_exclude_public_tiku_go(self):
+        """不希望题目离开本机时, 可以只用离线题库。"""
+        conf = main_module.resolve_tiku_config({"provider": "auto"}, None,
+                                              {"CHAOXING_TIKU_GO_ENABLED": "false"})
+        self.assertEqual(conf["provider"], "TikuLocal")
+        self.assertNotIn("TikuGo", conf["provider"])
 
     def test_no_tiku_flag_disables(self):
         fake_args = type("A", (), {

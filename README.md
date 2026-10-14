@@ -65,6 +65,9 @@
 TikuLocal(仓库内题库) → TikuGo → 言溪 → TikuAdapter → 硅基流动 → AI大模型
 ```
 
+`TikuGo` 是免费公共题库(无需凭据)，也是默认链里唯一会把题目发到第三方的环节。
+不想让题目离开本机就设 `TIKU_GO_ENABLED=false`(或把 `TIKU_PROVIDER` 直接设为 `TikuLocal`)。
+
 ### 3. 推荐的第一次运行方式
 
 1. 保持 `TIKU_SUBMIT=false` 跑一轮：题库会把这一轮所有搜到的答案写进 `tiku/cache.json`，并合并进 `tiku/bank.json` 后提交回仓库；
