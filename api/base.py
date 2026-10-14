@@ -187,7 +187,7 @@ def exact_option_letter(target: str, options: list) -> str:
         return ""
     for option in options:
         if normalize_text(get_option_text(option)) == target_norm:
-            return option[:1]
+            return normalize_fullwidth(option)[:1]
     return ""
 
 
@@ -208,7 +208,7 @@ def best_option_by_similarity(target: str, options: list, threshold: float = 0.8
         score = SequenceMatcher(None, target_norm, option_norm).ratio()
         if score > best_score:
             best_score = score
-            best_letter = option[:1]
+            best_letter = normalize_fullwidth(option)[:1]
 
     if best_score >= threshold:
         logger.info(f"相似度兜底匹配成功: {best_letter} (score={best_score:.2f}, threshold={threshold:.2f})")
@@ -978,7 +978,7 @@ class Chaoxing:
                                 if (
                                         is_subsequence(_a, o)  # 去掉各种符号和前面ABCD的答案应当是选项的子序列
                                 ):
-                                    answer += o[:1]
+                                    answer += normalize_fullwidth(o)[:1]
                                     matched = True
                                     break # 找到匹配项后立即停止，防止重复添加
                             if not matched:
@@ -997,7 +997,7 @@ class Chaoxing:
                             answer = exact_option_letter(t_res[0], options_list)
                         for o in ([] if answer else options_list):
                             if is_subsequence(t_res[0], o):
-                                answer = o[:1]
+                                answer = normalize_fullwidth(o)[:1]
                                 break
                         if not answer and t_res:
                             answer = best_option_by_similarity(t_res[0], options_list, threshold=0.8)
