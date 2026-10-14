@@ -89,7 +89,20 @@ python scripts/tiku_tool.py lookup -q "以下哪个是网络层协议？"
 
 # 把答案缓存合并回题库(workflow 每轮结束会自动执行)
 python scripts/tiku_tool.py export
+
+# 手动改了题库里的答案？让改动立刻生效(脚本是先查缓存的, 否则旧缓存会继续被优先使用)
+python scripts/tiku_tool.py import --input 修好的题库.json --sync-cache
+
+# 缓存是派生产物, 怀疑被污染时可以直接清空重新积累(题库文件不受影响)
+python scripts/tiku_tool.py cache stats
+python scripts/tiku_tool.py cache clear
 ```
+
+几个安全设计：
+
+* 回写只补新题、并更新“之前由缓存自动写进去”的答案，**人工核对过/导入的答案不会被自动覆盖**；
+* 题库文件解析失败、或你用的是非 `.json` 的文本题库时，**回写会直接拒绝并说明原因**，绝不覆盖你的原文件；
+* 坏 JSON 不会被猜着解析（不会把 JSON 片段当答案）；答案为空的条目会提示而不是静默丢弃。
 
 题库文件格式(`tiku/bank.json`)：
 
