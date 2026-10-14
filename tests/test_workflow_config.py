@@ -84,12 +84,12 @@ class TestWorkflowConfigPath(unittest.TestCase):
         self.assertIsInstance(tiku.providers[0], TikuLocal)
         answer = tiku.query({"title": "1、以下哪个是网络层协议？（2.0分）", "type": "single",
                              "options": "A. IP\nB. TCP"})
-        self.assertEqual(answer, "A")
+        self.assertEqual(answer, "IP")  # 题库里的字母 A 会按当前选项展开成选项文本
 
         cache_file = self.tmpdir / "tiku" / "cache.json"
         self.assertTrue(cache_file.is_file(), "答案应该写进 tiku/cache.json")
         cached = json.loads(cache_file.read_text(encoding="utf-8"))
-        self.assertEqual(list(cached.values()), ["A"])
+        self.assertEqual(list(cached.values()), ["IP"])
 
     def test_auto_chain_includes_configured_providers(self):
         self._write_bank()

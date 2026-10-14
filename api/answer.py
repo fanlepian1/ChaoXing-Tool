@@ -1405,20 +1405,59 @@ class TikuLocal(Tiku):
                            f"(可用 scripts/tiku_tool.py import)")
 
     # ------------------------------------------------------------ 查询
+    # 匹配形如 "A. 选项内容" / "B、选项内容" / "C) 选项内容" 的选项行
+    _OPTION_LINE_RE = re.compile(r'^([A-Za-z])\s*[.、:：)）]?\s*(.*)$')
+
+    def _option_index(self, options) -> dict:
+        """把当前题目的选项解析成 {字母: 选项文本}。"""
+        index: dict[str, str] = {}
+        if not options:
+            return index
+        for line in str(options).split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            match = self._OPTION_LINE_RE.match(line)
+            if match:
+                letter = match.group(1).upper()
+                if letter not in index:
+                    index[letter] = match.group(2).strip()
+        return index
+
+    def _normalize_answer_for_question(self, answer: Optional[str], q_info: dict) -> Optional[str]:
+        """按当前题目的选项把字母答案规整成**选项文本**。
+
+        两类常见题库响应会被救回来:
+            * 多选连写: "AB" -> "选项A内容\\n选项B内容"(旧逻辑会解析失败, 退化成随机作答);
+            * 单个字母: "A" -> 选项A内容(交给 base.py 按当前卷面重新定位, 避免子序列误配)。
+        只在每个字符都是合法选项字母时转换, 其余情况原样返回(例如题库直接存了选项原文)。
+        """
+        if not answer:
+            return answer
+        index = self._option_index(q_info.get('options'))
+        if not index:
+            return answer
+        letters = str(answer).strip().replace(' ', '').replace('\n', '').upper()
+        if not letters or len(letters) > len(index) + 2:
+            return answer
+        if any(ch not in index for ch in letters):
+            return answer
+        parts = [index[ch] or ch for ch in letters]
+        normalized = '\n'.join(parts)
+        logger.debug(f'{self.name}字母答案已展开为选项文本: {answer} -> {normalized!r}')
+        return normalized
+
     def _query(self, q_info: dict) -> Optional[str]:
         title = str(q_info.get('title') or '')
         answer = self._lookup_bank(title)
-        if answer:
-            return answer
-        # 有些题库把选项一起作为索引, 再试一次"题干+选项"
-        options = q_info.get('options')
-        if options:
-            answer = self._lookup_bank(f"{title} {options}")
-            if answer:
-                return answer
-        if self._api_url and not self._api_failed:
-            return self._query_api(q_info)
-        return None
+        if not answer and q_info.get('options'):
+            # 有些题库把选项一起作为索引, 再试一次"题干+选项"
+            answer = self._lookup_bank(f"{title} {q_info['options']}")
+        if not answer and self._api_url and not self._api_failed:
+            answer = self._query_api(q_info)
+        if not answer:
+            return None
+        return self._normalize_answer_for_question(answer, q_info)
 
     def _lookup_bank(self, question: str) -> Optional[str]:
         if not self.bank or not question:

@@ -150,24 +150,24 @@ class TestTikuLocalQuery(TikuTestCase):
         self.write_bank({"1、以下哪个是网络层协议？（2.0分）": "A"})
         tiku = build_tiku(self.base_conf())
         q_info = {"title": "1、以下哪个是网络层协议？（2.0分）", "type": "single", "options": "A. IP\nB. TCP"}
-        self.assertEqual(tiku.query(q_info), "A")
+        self.assertEqual(tiku.query(q_info), "IP")  # 字母 A 会被展开成该选项的文本
         cached = json.loads(self.cache_path.read_text(encoding="utf-8"))
         # Tiku.query 会先剥掉题号与分值, 缓存键里不应该再出现这些噪音
         keys = [k for k in cached if "以下哪个是网络层协议" in k]
         self.assertEqual(len(keys), 1, f"缓存键不符合预期: {list(cached)}")
         # 题号与分值被剥掉, 但标点原样保留(对外部题库更友好)
         self.assertEqual(keys[0], "以下哪个是网络层协议？")
-        self.assertEqual(cached[keys[0]], "A")
+        self.assertEqual(cached[keys[0]], "IP")
 
     def test_cache_short_circuits_provider(self):
         self.write_bank({"题目X": "A"})
         tiku = build_tiku(self.base_conf())
         q = {"title": "题目X", "type": "single", "options": "A. 甲\nB. 乙"}
-        self.assertEqual(tiku.query(q), "A")
+        self.assertEqual(tiku.query(q), "甲")
         # 把题库文件清空, 第二次仍然应该从缓存命中
         self.bank_path.write_text("{}", encoding="utf-8")
         tiku.bank.load()
-        self.assertEqual(tiku.query(q), "A")
+        self.assertEqual(tiku.query(q), "甲")
 
     def test_miss_returns_none(self):
         self.write_bank({"题目X": "A"})
@@ -198,7 +198,7 @@ class TestTikuLocalQuery(TikuTestCase):
         self.assertEqual(tiku.COVER_RATE, 0.9)
         self.assertEqual(tiku.true_list, DEFAULT_TRUE_LIST)
         self.assertEqual(tiku.false_list, DEFAULT_FALSE_LIST)
-        self.assertEqual(tiku.query({"title": "题干", "type": "single", "options": "A. 甲\nB. 乙"}), "A")
+        self.assertEqual(tiku.query({"title": "题干", "type": "single", "options": "A. 甲\nB. 乙"}), "甲")
 
     def test_fuzzy_match_on_longer_bank_title(self):
         """题库题面比卷面多几个字(常见: 题库里带了"下列哪一项"), 靠包含式匹配命中。"""
@@ -206,7 +206,7 @@ class TestTikuLocalQuery(TikuTestCase):
         tiku = build_tiku(self.base_conf(local_contain_rate="0.6"))
         self.assertEqual(
             tiku.query({"title": "以下哪个是网络层协议", "type": "single", "options": "A. IP\nB. 应用"}),
-            "A",
+            "IP",
         )
 
     def test_one_char_different_question_is_not_answered(self):
@@ -229,14 +229,14 @@ class TestTikuLocalHttpApi(TikuTestCase):
         with LocalTikuServer({"code": 1, "data": {"answer": "B"}}) as server:
             tiku = build_tiku(self.base_conf(local_api=server.url))
             answer = tiku.query({"title": "接口题目", "type": "single", "options": "A. 甲\nB. 乙"})
-            self.assertEqual(answer, "B")
+            self.assertEqual(answer, "乙")
             self.assertTrue(server.requests, "接口应当被调用")
 
     def test_http_api_adapter_style_response(self):
         with LocalTikuServer({"plat": 0, "answer": {"bestAnswer": ["A", "C"]}}) as server:
             tiku = build_tiku(self.base_conf(local_api=server.url))
             self.assertEqual(tiku.query({"title": "多选题干", "type": "multiple", "options": "A. 甲\nB. 乙\nC. 丙"}),
-                             "A\nC")
+                             "甲\n丙")
 
     def test_http_api_failure_is_not_fatal(self):
         tiku = build_tiku(self.base_conf(local_api="http://127.0.0.1:9/query", local_api_timeout="1"))
@@ -257,7 +257,7 @@ class TestFallbackChain(TikuTestCase):
         chain.init_tiku()
 
         answer = chain.query({"title": "先扎不到的题目", "type": "single", "options": "A. 甲\nB. 乙"})
-        self.assertEqual(answer, "B")
+        self.assertEqual(answer, "B")  # 假题库返回什么就是什么(只有 TikuLocal 会做字母展开)
         self.assertEqual(stub._queried, 1)
 
     def test_local_wins_when_hit(self):
@@ -272,7 +272,7 @@ class TestFallbackChain(TikuTestCase):
         chain.config_set(conf)
         chain.init_tiku()
 
-        self.assertEqual(chain.query({"title": "命中题目", "type": "single", "options": "A. 甲\nB. 乙"}), "A")
+        self.assertEqual(chain.query({"title": "命中题目", "type": "single", "options": "A. 甲\nB. 乙"}), "甲")
         self.assertEqual(stub._queried, 0)
 
 
@@ -289,8 +289,55 @@ class TestBankExport(TikuTestCase):
         # 带来源信息的条目会存成 {"answer": .., "source": ..}, 两种形态都必须是可读回的
         entry = data["新题目"]
         self.assertEqual(entry["answer"] if isinstance(entry, dict) else entry, "C")
+        # 缓存优先级高于题库, 先清掉它, 验证的是题库文件这条路: 字母 C 会按当前选项展开成选项文本
+        self.cache_path.unlink(missing_ok=True)
         reloaded = build_tiku(self.base_conf())
-        self.assertEqual(reloaded.query({"title": "新题目", "type": "single", "options": "A. 甲\nB. 乙\nC. 丙"}), "C")
+        self.assertEqual(reloaded.query({"title": "新题目", "type": "single", "options": "A. 甲\nB. 乙\nC. 丙"}), "丙")
+
+
+class TestAnswerNormalization(TikuTestCase):
+    def test_multiple_choice_glued_letters_are_expanded(self):
+        """题库常返回连写字母(AB), 旧逻辑会解析失败退化成随机作答。"""
+        self.write_bank({"多选题干": "AB"})
+        tiku = build_tiku(self.base_conf())
+        answer = tiku.query({"title": "多选题干", "type": "multiple",
+                             "options": "A. 封装\nB. 继承\nC. 多态"})
+        self.assertEqual(answer, "封装\n继承")
+        # 缓存里存的也应该是展开后的答案, 下一轮直接可用
+        cached = json.loads(self.cache_path.read_text(encoding="utf-8"))
+        self.assertEqual(cached["多选题干"], "封装\n继承")
+
+    def test_single_choice_letter_is_expanded_to_option_text(self):
+        self.write_bank({"单选题干": "B"})
+        tiku = build_tiku(self.base_conf())
+        answer = tiku.query({"title": "单选题干", "type": "single",
+                             "options": "A. TCP\nB. IP\nC. HTTP"})
+        self.assertEqual(answer, "IP")
+
+    def test_judgement_letter_is_expanded(self):
+        self.write_bank({"判断题干": "A"})
+        tiku = build_tiku(self.base_conf())
+        answer = tiku.query({"title": "判断题干", "type": "judgement",
+                             "options": "A. 正确\nB. 错误"})
+        self.assertEqual(answer, "正确")
+        self.assertTrue(tiku.judgement_select(answer))
+
+    def test_text_answer_is_not_mangled(self):
+        """题库直接存了选项原文时不能被当成字母拆开(例如 IP 全部由字母组成)。"""
+        self.write_bank({"单选题干": "IP", "另一题干": "正确"})
+        tiku = build_tiku(self.base_conf())
+        self.assertEqual(tiku.query({"title": "单选题干", "type": "single",
+                                     "options": "A. TCP\nB. IP"}), "IP")
+        self.assertEqual(tiku.query({"title": "另一题干", "type": "judgement",
+                                     "options": "A. 正确\nB. 错误"}), "正确")
+
+    def test_wrong_letters_are_rejected_by_type_check(self):
+        """判断题拿到 A/B 这类选项字母时必须判为不合法(不是"正确/错误")。"""
+        self.write_bank({"判断题干": "C"})
+        tiku = build_tiku(self.base_conf())
+        # 选项里没有 C, 字母无法展开, 判断题类型校验会拦掉
+        self.assertIsNone(tiku.query({"title": "判断题干", "type": "judgement",
+                                      "options": "A. 正确\nB. 错误"}))
 
 
 class TestDefaults(TikuTestCase):
