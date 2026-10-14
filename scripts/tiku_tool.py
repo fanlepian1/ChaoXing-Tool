@@ -51,6 +51,7 @@ from api.tiku_bank import (  # noqa: E402
     compact_text,
     looks_like_json,
     merge_bank_files,
+    parse_bank_text,
     parse_text_entries,
 )
 
@@ -73,11 +74,17 @@ def load_input(path: Path, fmt: str = "auto") -> tuple[list[dict] | dict | list,
         try:
             return json.loads(raw), 0
         except json.JSONDecodeError as e:
-            print(f"[tiku_tool] {path} 是 JSON 但解析失败({e}), 已跳过该文件; "
-                  f"如果是纯文本题库请用 --format text", file=sys.stderr)
+            if is_json_name or fmt == "json":
+                print(f"[tiku_tool] {path} 是 JSON 但解析失败({e}), 已跳过该文件", file=sys.stderr)
+                return [], 0
+            # 后缀不是 .json: 纯文本题库的第一行经常是 "[单选题]…", 不能整份丢掉
+            credible, skipped = parse_bank_text(raw)
+            if credible:
+                return credible, skipped
+            print(f"[tiku_tool] {path} 既不是合法 JSON 也解析不出题目, 已跳过(可能文件被截断)",
+                  file=sys.stderr)
             return [], 0
-    entries, skipped = parse_text_entries(raw)
-    return entries, skipped
+    return parse_bank_text(raw)
 
 
 def cmd_stats(args) -> int:
@@ -159,7 +166,11 @@ def cmd_import(args) -> int:
 
 
 def cmd_merge(args) -> int:
-    result = merge_bank_files(args.input, args.bank, threshold=0.86)
+    # merge_bank_files 会把已存在的输出文件也当成输入, 所以不会丢掉 --bank 里原有的题目
+    result = merge_bank_files(args.input, args.bank, threshold=0.9)
+    if result["output"] is None:
+        print(f"[tiku_tool] 已跳过写回: {result.get('refusal') or args.bank}\n          (想写到别的文件请用 --bank x.json)", file=sys.stderr)
+        return 1
     print(f"[tiku_tool] 合并完成: {result['entries']} 条 -> {result['output']}")
     return 0
 
@@ -188,7 +199,12 @@ def cmd_export(args) -> int:
 def cmd_dedupe(args) -> int:
     bank = LocalBank(paths=args.bank, fuzzy=False, reload_interval=0)
     before = bank.load()
+    for issue in bank.issues:
+        print(f"[tiku_tool] 提示: {issue}", file=sys.stderr)
     output = bank.save(args.output or args.bank)
+    if output is None:
+        print(f"[tiku_tool] 已跳过写回: {bank.last_refusal or args.bank}", file=sys.stderr)
+        return 1
     print(f"[tiku_tool] 去重/规整完成: {before} -> {len(bank)} 条 -> {output}")
     return 0
 

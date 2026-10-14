@@ -239,6 +239,14 @@ class Tiku:
         self.DISABLE = False
         return conf
         
+    def query_local(self, q_info: dict) -> Optional[str]:
+        """只用本地/离线数据查一次答案(默认不支持)。
+
+        子类(例如本地题库)实现后, Tiku.query 会先问它: 仓库内人工维护的题库是"真相",
+        优先级高于自动积累的答案缓存, 也不消耗任何网络请求。
+        """
+        return None
+
     def query(self,q_info:dict) -> Optional[str]:
         if self.DISABLE:
             return None
@@ -251,9 +259,19 @@ class Tiku:
             q_info['title'] = cleaned
         logger.debug(f"处理后标题：{q_info['title']}")
 
-        # 先过缓存
         cache_dao = CacheDAO()
         q_type = q_info.get('type')
+
+        # 本地题库优先(不发网络请求): 命中就用它, 并把缓存里不一致的旧答案纠正过来
+        local_answer = self.query_local(q_info)
+        if local_answer:
+            local_answer = local_answer.strip()
+            if not q_type or check_answer(local_answer, q_type, self):
+                logger.info(f"从{self.name}(本地)获取答案：{q_info['title']} -> {local_answer}")
+                if cache_dao.get_cache(q_info['title']) != local_answer:
+                    cache_dao.add_cache(q_info['title'], local_answer)
+                return local_answer
+            logger.info(f"本地题库答案与题目类型不符，已忽略：{local_answer}")
         answer = cache_dao.get_cache(q_info['title'])
         if answer:
             answer = answer.strip()
@@ -400,6 +418,21 @@ class TikuFallback(Tiku):
             self.DISABLE = True
         else:
             logger.info(f"多题库回退已启用，查询顺序: {', '.join([p.__class__.__name__ for p in self.providers])}")
+
+    def query_local(self, q_info: dict) -> Optional[str]:
+        """逐个问"只用离线数据"的子题库, 命中即返回(不会碰网络题库)。"""
+        for provider in self.providers:
+            try:
+                answer = provider.query_local(q_info)
+            except Exception as e:
+                logger.error(f'{self.name} 本地查询 {provider.name} 异常: {e}')
+                continue
+            if not answer:
+                continue
+            q_type = q_info.get('type')
+            if not q_type or check_answer(answer, q_type, provider):
+                return answer
+        return None
 
     def _query(self, q_info:dict) -> Optional[str]:
         for provider in self.providers:
@@ -1456,12 +1489,19 @@ class TikuLocal(Tiku):
         logger.debug(f'{self.name}字母答案已展开为选项文本: {answer} -> {normalized!r}')
         return normalized
 
-    def _query(self, q_info: dict) -> Optional[str]:
+    def query_local(self, q_info: dict) -> Optional[str]:
+        """只查本地题库文件(不发网络请求)。"""
         title = str(q_info.get('title') or '')
         answer = self._lookup_bank(title)
         if not answer and q_info.get('options'):
             # 有些题库把选项一起作为索引, 再试一次"题干+选项"
             answer = self._lookup_bank(f"{title} {q_info['options']}")
+        if not answer:
+            return None
+        return self._normalize_answer_for_question(answer, q_info)
+
+    def _query(self, q_info: dict) -> Optional[str]:
+        answer = self.query_local(q_info)
         if not answer and self._api_url and not self._api_failed:
             answer = self._query_api(q_info)
         if not answer:

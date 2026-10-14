@@ -304,6 +304,44 @@ class TestFallbackChain(TikuTestCase):
         self.assertEqual(stub._queried, 0)
 
 
+class TestLocalBankPriority(TikuTestCase):
+    """本地题库(人工维护)优先于答案缓存: 改了题库就该立刻生效, 不必依赖 --sync-cache。"""
+
+    def test_bank_wins_over_stale_cache(self):
+        self.write_bank({"题目X": "乙"})
+        self.cache_path.write_text(json.dumps({"题目X": "甲"}, ensure_ascii=False), encoding="utf-8")
+        tiku = build_tiku(self.base_conf())
+        answer = tiku.query({"title": "题目X", "type": "single", "options": "A. 甲\nB. 乙"})
+        self.assertEqual(answer, "乙")
+        # 缓存里的旧答案会被顺手纠正
+        cached = json.loads(self.cache_path.read_text(encoding="utf-8"))
+        self.assertEqual(cached["题目X"], "乙")
+
+    def test_cache_still_used_when_bank_misses(self):
+        self.write_bank({"别的题目": "甲"})
+        self.cache_path.write_text(json.dumps({"题目Y": "甲"}, ensure_ascii=False), encoding="utf-8")
+        tiku = build_tiku(self.base_conf())
+        self.assertEqual(tiku.query({"title": "题目Y", "type": "single", "options": "A. 甲\nB. 乙"}), "甲")
+
+    def test_local_api_provider_keeps_bank_authoritative(self):
+        """配了自建接口时: 题库文件仍然是权威(且不发请求), 接口只用于题库没命中的题。"""
+        self.write_bank({"题目Z": "乙"})
+        self.cache_path.write_text(json.dumps({"题目Z": "甲"}, ensure_ascii=False), encoding="utf-8")
+        with LocalTikuServer({"code": 1, "data": {"answer": "乙"}}) as server:
+            tiku = build_tiku(self.base_conf(local_api=server.url))
+            self.assertEqual(tiku.query({"title": "题目Z", "type": "single", "options": "A. 甲\nB. 乙"}), "乙")
+            self.assertFalse(server.requests, "题库命中时不应该请求自建接口")
+
+            # 题库没命中: 先看缓存(不发请求)
+            self.cache_path.write_text(json.dumps({"题目W": "甲"}, ensure_ascii=False), encoding="utf-8")
+            self.assertEqual(tiku.query({"title": "题目W", "type": "single", "options": "A. 甲\nB. 乙"}), "甲")
+            self.assertFalse(server.requests)
+
+            # 缓存也没有: 才去问自建接口
+            self.assertEqual(tiku.query({"title": "题目V", "type": "single", "options": "A. 甲\nB. 乙"}), "乙")
+            self.assertTrue(server.requests)
+
+
 class TestCacheValidation(TikuTestCase):
     def test_cache_entry_with_wrong_type_is_ignored(self):
         """回归: 缓存命中也要过类型校验, 否则旧版本写坏的类型不符答案会被一直返回。"""
@@ -384,6 +422,20 @@ class TestAnswerNormalization(TikuTestCase):
                              "options": "A. True\nB. False"})
         self.assertEqual(answer, "False")
         self.assertFalse(tiku.judgement_select(answer))
+
+    def test_single_choice_with_english_options_is_not_rejected(self):
+        """回归: 单选题选项是 A. True / B. False 时, 展开出的 'False' 不能被当成"题型不符"丢掉。"""
+        self.write_bank({"英文单选题干": "B"})
+        tiku = build_tiku(self.base_conf())
+        answer = tiku.query({"title": "英文单选题干", "type": "single", "options": "A. True\nB. False"})
+        self.assertEqual(answer, "False")
+
+    def test_judgement_words_still_rejected_for_single(self):
+        """反向保护: 单选题拿到中文判断词("正确")时仍应判为题型不符。"""
+        self.write_bank({"单选题干": "正确"})
+        tiku = build_tiku(self.base_conf())
+        self.assertIsNone(tiku.query({"title": "单选题干", "type": "single",
+                                      "options": "A. 甲\nB. 乙"}))
 
     def test_wrong_letters_are_rejected_by_type_check(self):
         """判断题拿到 A/B 这类选项字母时必须判为不合法(不是"正确/错误")。"""

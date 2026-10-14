@@ -203,6 +203,25 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(tiku_tool.main(["cache", "--cache", str(self.cache), "clear"]), 0)
         self.assertEqual(json.loads(self.cache.read_text(encoding="utf-8")), {})
 
+    def test_merge_does_not_destroy_existing_bank(self):
+        """回归: merge 不能把 --bank 里原有的题目搞丢。"""
+        self.bank.write_text(json.dumps({"老题目": "A"}, ensure_ascii=False), encoding="utf-8")
+        extra = self.tmpdir / "extra.json"
+        extra.write_text(json.dumps({"新题目": "B"}, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(tiku_tool.main(["merge", "--bank", str(self.bank), "--input", str(extra)]), 0)
+        data = json.loads(self.bank.read_text(encoding="utf-8"))
+        self.assertEqual(set(data), {"老题目", "新题目"})
+
+    def test_merge_into_text_bank_is_refused(self):
+        """回归: 写回非 JSON 题库要拒绝并给出非零退出码(而不是打印"完成")。"""
+        text_bank = self.tmpdir / "tb.txt"
+        text_bank.write_text("题目甲----A\n", encoding="utf-8")
+        extra = self.tmpdir / "extra2.json"
+        extra.write_text(json.dumps({"新题目": "B"}, ensure_ascii=False), encoding="utf-8")
+        code = tiku_tool.main(["merge", "--bank", str(text_bank), "--input", str(extra)])
+        self.assertEqual(code, 1)
+        self.assertEqual(text_bank.read_text(encoding="utf-8"), "题目甲----A\n")
+
     def test_bank_flag_after_subcommand(self):
         # 文档里写的是 `stats --bank xxx`, 解析器必须支持这个顺序
         self.assertEqual(tiku_tool.main(["stats", "--bank", str(self.bank)]), 0)

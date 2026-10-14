@@ -121,14 +121,15 @@ _RE_LEADING_NUMBER = re.compile(
     r"[（(\[]\s*\d{1,4}\s*[)）\]]"      # (1) / （12） / [3]
     r"|\d{1,4}\s*[、.．,，:：]"          # 1、 / 12. / 3：
     r"|\d{1,4}\s*[)）\]]"                # 1) / 2） / 3]
+    r"|第\s*\d{1,4}\s*题"                # 第3题
     r")\s*(?![0-9])"                     # "3.5GHz" 这种小数不算题号
 )
 # 题型标签: 只有括号里是**题型词**或**短编号**时才当标签剥掉。
 # 否则 "[0,1]区间上的函数" / "【0,1】区间上的函数有界" / "【2024】大事记" 这种题面会被削成同一个 key,
 # 造成精确匹配假命中(静默错答案)与导入时丢题 —— 这与题号过度删减是同一类事故。
 # 说明: 括号里的纯数字只认 1~3 位(题号/序号), 4 位很可能是年份(内容)所以保留。
-_LABEL_WORDS = (r"(?:单选题|多选题|判断题|填空题|简答题|选择题|不定项选择题|名词解释|论述题|计算题|分析题"
-                r"|单选|多选|判断|填空|简答|选择|题目|题干)")
+_LABEL_WORDS = (r"(?:单选题|多选题|判断题|填空题|简答题|选择题|多项选择题|单项选择|多项选择|不定项选择题|"
+                r"名词解释|论述题|计算题|分析题|单选|多选|判断|填空|简答|选择|题目|题干)")
 _RE_TAG = re.compile(
     r"^\s*(?:"
     r"【\s*(?:\d{1,3}|" + _LABEL_WORDS + r")\s*】"
@@ -140,7 +141,17 @@ _RE_SCORE_SUFFIX = re.compile(r"\s*[（(]\s*\d+(?:\.\d+)?\s*分\s*[)）]\s*$")
 # 分值也可能出现在题面**开头**(题库导出常见: "（2.0分）下列说法正确的是")
 _RE_SCORE_PREFIX = re.compile(r"^\s*[（(]\s*\d+(?:\.\d+)?\s*分\s*[)）]\s*")
 _RE_VARIANT = str.maketrans({"⻛": "风", "⻔": "门", "⻋": "车", "⻢": "马", "⺠": "民", "⻓": "长"})
-_RE_DROP = re.compile(r"[\s，。！？；：、,.!?;:'\"“”‘’`~!@#$%^&*\-_+=|\\/<>《》…·（）()\[\]【】{}]")
+# 括号不能直接删掉: "(0,1)区间" 与 "[0,1]区间" 是两道不同的题(开区间/闭区间),
+# 若都删成 "01区间" 就会撞成同一个 key -> 精确匹配假命中。这里把各类括号映射成互不相同的占位字符,
+# 既保留"括号种类"这个信息, 又不引入标点噪音。
+_BRACKET_SENTINEL = str.maketrans({
+    "(": "q", ")": "p",
+    "[": "b", "]": "d",
+    "【": "z", "】": "x",
+    "《": "n", "》": "m",
+    "{": "e", "}": "f",
+})
+_RE_DROP = re.compile(r"[\s，。！？；：、,.!?;:'\"“”‘’`~!@#$%^&*\-_+=|\\/<>…·]")
 # 全角 ASCII -> 半角
 _FULLWIDTH = str.maketrans({chr(0xFF01 + i): chr(0x21 + i) for i in range(0x5E)})
 
@@ -168,6 +179,7 @@ def compact_text(text: Any) -> str:
             break
         s = new
     s = s.translate(_RE_VARIANT)
+    s = s.translate(_BRACKET_SENTINEL)
     s = _RE_DROP.sub("", s)
     return s.lower()
 
@@ -234,7 +246,7 @@ def _pick(mapping: dict, keys: Iterable[str]) -> Any:
 
 
 def _entry_from_question_answer(question: Any, answer: Any, qtype: Any = None, source: Optional[str] = None,
-                                own_source: Any = None) -> Optional[dict]:
+                                own_source: Any = None, own_auto: Any = None) -> Optional[dict]:
     text = str(question).strip() if question is not None else ""
     if not text:
         return None
@@ -252,6 +264,8 @@ def _entry_from_question_answer(question: Any, answer: Any, qtype: Any = None, s
     source_value = own_source if (isinstance(own_source, str) and own_source.strip()) else source
     if source_value:
         entry["source"] = str(source_value).strip()
+    if own_auto is not None and str(own_auto).strip():
+        entry["auto_answer"] = str(own_auto).strip()
     return entry
 
 
@@ -276,7 +290,8 @@ def collect_entries(payload: Any, source: Optional[str] = None, stats: Optional[
             a_key = _pick(node, _ANSWER_KEYS)
             if q_key is not None and a_key is not None and not isinstance(q_key, (dict, list)):
                 entry = _entry_from_question_answer(q_key, a_key, _pick(node, _TYPE_KEYS), source,
-                                                    own_source=node.get("source"))
+                                                    own_source=node.get("source"),
+                                                    own_auto=node.get("auto_answer"))
                 if entry:
                     entries.append(entry)
                 else:
@@ -295,7 +310,8 @@ def collect_entries(payload: Any, source: Optional[str] = None, stats: Optional[
                         inner = _pick(value, _ANSWER_KEYS)
                         if inner is not None:
                             entry = _entry_from_question_answer(key, inner, _pick(value, _TYPE_KEYS), source,
-                                                                own_source=value.get("source"))
+                                                                own_source=value.get("source"),
+                                                                own_auto=value.get("auto_answer"))
                             if entry:
                                 entries.append(entry)
                                 continue
@@ -333,15 +349,26 @@ JSON_SUFFIXES = (".json", ".jsonl")
 def looks_like_json(text: str) -> bool:
     """内容是否"像 JSON"。
 
-    只看首个字符是 {/[ 是不够的: 纯文本题库的第一行经常是 "[单选题]题干----A"。
-    真正的 JSON 在开头附近一定有引号, 用它作为判据, 避免把合法文本题库误判成坏 JSON 而整份跳过。
+    只看首个字符是 {/[ 是不够的: 纯文本题库的第一行经常是 "[单选题]题干----A",
+    甚至带引号("[判断题]What's this----正确")。这里采用"JSON 优先 + 文本兜底"的策略:
+    只要严格解析成功就按 JSON 走, 解析失败时再判断能不能当文本题库读(见 load_bank_file_with_stats),
+    并且用 _looks_like_json_fragment 把"JSON 碎片"这种伪题目挡掉。
     """
     if not text:
         return False
-    head = text.lstrip()[:200]
-    if not head or head[0] not in "{[":
-        return False
-    return '"' in head or "'" in head
+    head = text.lstrip()[:1]
+    return head in ("{", "[")
+
+
+def looks_like_json_fragment(question: Any) -> bool:
+    """判断一条"题目"其实是不是被截断的 JSON 碎片(那种条目绝不能进题库)。"""
+    text = str(question or "").strip()
+    if not text:
+        return True
+    if re.match(r'^[{\[]\s*["\']', text):
+        return True
+    # 形如 {"题干": "答案"  这种被逗号切成两半的碎片
+    return ('":' in text[:80]) or ("':" in text[:80])
 
 
 def load_bank_file_with_stats(path: str | Path) -> tuple[list[dict], dict]:
@@ -366,11 +393,21 @@ def load_bank_file_with_stats(path: str | Path) -> tuple[list[dict], dict]:
         try:
             payload = json.loads(raw)
         except json.JSONDecodeError:
+            if is_json_name:
+                stats["bad_json"] = True
+                return [], stats
+            # 后缀不是 .json 却以 {/[ 开头: 可能是纯文本题库(首行 [单选题]…), 也可能是截断的 JSON。
+            # 试着按文本解析, 但必须把"JSON 碎片"这种伪题目挡掉, 否则会拿 JSON 片段当答案。
+            text_entries, skipped = parse_bank_text(raw)
+            if text_entries:
+                if skipped:
+                    stats["skipped_lines"] = skipped
+                return collect_entries(text_entries, source=p.name, stats=stats), stats
             stats["bad_json"] = True
             return [], stats
         return collect_entries(payload, source=p.name, stats=stats), stats
 
-    entries, skipped = parse_text_entries(raw)
+    entries, skipped = parse_bank_text(raw)
     if skipped:
         stats["skipped_lines"] = skipped
     if not entries:
@@ -434,6 +471,27 @@ def parse_text_entries(text: str) -> tuple[list[dict], int]:
         else:
             skipped += 1
     return entries, skipped
+
+
+
+def _path_key(path: Any) -> str:
+    """路径归一化(解析为绝对路径 + 统一大小写)用于比较, 避免换个写法就绕过写保护。"""
+    try:
+        resolved = Path(path).resolve()
+    except OSError:
+        resolved = Path(path)
+    return os.path.normcase(str(resolved))
+
+
+def parse_bank_text(raw: str) -> tuple[list[dict], int]:
+    """按纯文本题库格式解析, 并过滤掉"其实是被截断的 JSON 碎片"的伪条目。
+
+    返回 (可用条目, 被跳过的原始行数)。工具脚本与运行期加载共用同一套判定, 避免两边行为不一致。
+    """
+    entries, skipped = parse_text_entries(raw)
+    credible = [item for item in entries if not looks_like_json_fragment(item.get("question"))]
+    return credible, skipped
+
 
 
 def split_paths(value: Any) -> list[str]:
@@ -511,7 +569,7 @@ class LocalBank:
                 file_entries, stats = load_bank_file_with_stats(path)
                 if stats.get("bad_json"):
                     issues.append(f"{path}: 是 JSON 但解析失败(文件可能被截断或损坏), 已跳过该文件")
-                    failed_paths.add(str(path))
+                    failed_paths.add(_path_key(path))
                 if stats.get("skipped_empty"):
                     issues.append(f"{path}: 有 {stats['skipped_empty']} 条题目答案为空, 已跳过(建议在题库里补齐或删掉)")
                 if file_entries:
@@ -631,11 +689,20 @@ class LocalBank:
         return best_entry["answer"]
 
     # ----------------------------------------------------------------- write
-    def add(self, question: Any, answer: Any, qtype: Any = None, source: Optional[str] = None) -> bool:
-        """加入/更新一条题目(内存中), 返回是否发生变化。"""
+    def add(self, question: Any, answer: Any, qtype: Any = None, source: Optional[str] = None,
+            auto: bool = False) -> bool:
+        """加入/更新一条题目(内存中), 返回是否发生变化。
+
+        auto=True 表示这次写入来自自动回写(缓存/外部题库), 会记录 auto_answer,
+        这样下一轮能够区分"没人动过的自动答案"(可继续更新) 与"人工改过的答案"(必须保留)。
+        """
         entry = _entry_from_question_answer(question, answer, qtype, source)
         if not entry:
             return False
+        if auto:
+            entry["auto_answer"] = entry["answer"]
+        else:
+            entry.pop("auto_answer", None)
         with self._lock:
             old = self._exact.get(entry["key"])
             self._exact[entry["key"]] = entry
@@ -667,7 +734,8 @@ class LocalBank:
                 if old["answer"] != entry["answer"]:
                     skipped += 1
                 continue
-            changed = self.add(entry["question"], entry["answer"], entry.get("type"), entry.get("source") or source)
+            changed = self.add(entry["question"], entry["answer"], entry.get("type"),
+                               entry.get("source") or source, auto=(overwrite is not True))
             if old is None:
                 added += 1
             elif changed:
@@ -680,8 +748,13 @@ class LocalBank:
             return True
         if overwrite is False:
             return False
-        # "auto": 只覆盖之前由缓存自动写进去的条目
-        return str(old_entry.get("source") or "").startswith("cache:")
+        # "auto": 只覆盖"上一次由系统自动写入、并且之后没人改过"的条目。
+        # 判据 1: auto_answer 记录的就是上次自动写的答案, 当前答案与它不同 => 人工改过 => 不能覆盖。
+        auto_answer = old_entry.get("auto_answer")
+        if auto_answer is not None and str(auto_answer).strip():
+            return str(old_entry.get("answer", "")).strip() == str(auto_answer).strip()
+        # 判据 2: 老格式文件没有 auto_answer, 只能按来源判断(去空白 + 忽略大小写)
+        return str(old_entry.get("source") or "").strip().lower().startswith("cache:")
 
     def import_cache(self, cache_path: Any = DEFAULT_CACHE_PATH, source: Optional[str] = None,
                      overwrite: Any = "auto") -> dict:
@@ -714,20 +787,28 @@ class LocalBank:
         返回写入(或更新)的条数。
         """
         path = Path(cache_path)
+        self.last_refusal = None
         payload: dict = {}
+        if path.exists() and path.suffix.lower() not in JSON_SUFFIXES:
+            self.last_refusal = f"{path}: 缓存文件不是 JSON, 为避免改变文件格式已跳过写入"
+            return 0
         if path.is_file():
             raw = _read_text(path)
-            if looks_like_json(raw):
-                try:
-                    loaded = json.loads(raw or "{}")
-                    if isinstance(loaded, dict):
-                        payload = loaded
-                except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-                    payload = {}
+            try:
+                loaded = json.loads(raw or "{}")
+            except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+                self.last_refusal = f"{path}: 缓存文件解析失败, 为避免覆盖已跳过写入"
+                return 0
+            if not isinstance(loaded, dict):
+                self.last_refusal = f"{path}: 缓存文件不是 JSON 对象, 为避免覆盖已跳过写入"
+                return 0
+            payload = loaded
         written = 0
         with self._lock:
             for entry in self._entries:
-                title = entry["question"]
+                # 键必须与 Tiku.query 读缓存用的键一致(它会先做 clean_title 预处理),
+                # 否则带题号/分值/题型标签的题库同步后依然命中不了旧条目。
+                title = clean_title(entry["question"]) or entry["question"]
                 if not overwrite and title in payload:
                     continue
                 if payload.get(title) != entry["answer"]:
@@ -754,7 +835,7 @@ class LocalBank:
         target = Path(path) if path else (self.paths[0] if self.paths else Path(DEFAULT_BANK_PATH))
         with self._lock:
             self.last_refusal = None
-            if str(target) in self.failed_paths and not allow_failed_overwrite:
+            if _path_key(target) in self.failed_paths and not allow_failed_overwrite:
                 self.last_refusal = f"{target}: 该文件加载时解析失败, 为避免覆盖已跳过写回"
                 return None
             if target.exists() and target.suffix.lower() not in JSON_SUFFIXES and not allow_failed_overwrite:
@@ -769,12 +850,14 @@ class LocalBank:
 
             data: dict[str, Any] = {}
             for entry in deduped.values():
-                if entry.get("type") or entry.get("source"):
+                if entry.get("type") or entry.get("source") or entry.get("auto_answer"):
                     item: dict[str, Any] = {"answer": entry["answer"]}
                     if entry.get("type"):
                         item["type"] = entry["type"]
                     if entry.get("source"):
                         item["source"] = entry["source"]
+                    if entry.get("auto_answer"):
+                        item["auto_answer"] = entry["auto_answer"]
                     data[entry["question"]] = item
                 else:
                     data[entry["question"]] = entry["answer"]
@@ -806,8 +889,15 @@ class LocalBank:
 
 
 def merge_bank_files(inputs: Iterable[str | Path], output: str | Path, threshold: float = 0.9) -> dict:
-    """把多个题库文件合并进一个题库文件(后加载的覆盖先加载的)。"""
-    bank = LocalBank(paths=[str(p) for p in inputs], fuzzy=False, threshold=threshold, reload_interval=0)
+    """把多个题库文件合并进一个题库文件(后加载的覆盖先加载的)。
+
+    输出文件如果已经存在, 会先把它本身当作一个输入读进来 —— 否则"合并"会静默销毁里面原有的题目。
+    """
+    input_list = [str(p) for p in inputs]
+    output_key = _path_key(output)
+    if output_key not in {_path_key(item) for item in input_list} and Path(output).is_file():
+        input_list.insert(0, str(output))
+    bank = LocalBank(paths=input_list, fuzzy=False, threshold=threshold, reload_interval=0)
     bank.load()
     written = bank.save(output)
-    return {"entries": len(bank), "output": written}
+    return {"entries": len(bank), "output": written, "refusal": bank.last_refusal}

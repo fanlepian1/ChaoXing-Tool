@@ -50,12 +50,16 @@ class TestCompactText(unittest.TestCase):
     def test_brackets_are_only_stripped_when_they_are_labels(self):
         """回归: [0,1] / (2,3) / 【0,1】 / 【2024】 这种是题面内容, 不能当题型标签删掉。"""
         # 全角书名括号以前是无条件削掉的, 同样会造成不同题目撞 key
-        self.assertEqual(compact_text("【0,1】区间上的函数有界"), "01区间上的函数有界")
+        self.assertEqual(compact_text("【0,1】区间上的函数有界"), "z01x区间上的函数有界")
         self.assertNotEqual(compact_text("【0,1】区间上的函数有界"), compact_text("【1,2】区间上的函数有界"))
         self.assertNotEqual(compact_text("【2024】大事记"), compact_text("【2025】大事记"))
         self.assertNotEqual(compact_text("【第一章】绪论"), compact_text("【第二章】绪论"))
-        self.assertEqual(compact_text("[0,1]区间上的函数"), "01区间上的函数")
-        self.assertEqual(compact_text("(2,3)区间上的函数"), "23区间上的函数")
+        self.assertEqual(compact_text("[0,1]区间上的函数"), "b01d区间上的函数")
+        self.assertEqual(compact_text("(2,3)区间上的函数"), "q23p区间上的函数")
+        # 开区间/闭区间/书名括号是**不同的题目**, 绝不能撞成同一个 key
+        keys = {compact_text("(0,1)区间上的函数有界"), compact_text("[0,1]区间上的函数有界"),
+                compact_text("【0,1】区间上的函数有界")}
+        self.assertEqual(len(keys), 3, keys)
         # 真正的题型标签要照旧剥掉(全角半角都要认)
         self.assertEqual(compact_text("（判断题）HTTP是无状态的"), "http是无状态的")
         self.assertEqual(compact_text("(单选题)以下哪个"), "以下哪个")
@@ -69,7 +73,8 @@ class TestCompactText(unittest.TestCase):
         self.assertEqual(clean_title("（2.0分）下列说法正确的是"), "下列说法正确的是")
 
     def test_unify_fullwidth_and_punctuation(self):
-        self.assertEqual(compact_text("ＴＣＰ协议，工作在（）层"), "tcp协议工作在层")
+        # 括号不会被直接删掉, 而是映射成占位字符(见括号占位符用例): 空括号 -> qp
+        self.assertEqual(compact_text("ＴＣＰ协议，工作在（）层"), "tcp协议工作在qp层")
 
     def test_normalize_variant_chars(self):
         self.assertEqual(compact_text("⻛险管理"), compact_text("风险管理"))
@@ -157,7 +162,7 @@ class TestLocalBank(unittest.TestCase):
     def test_fuzzy_lookup_by_containment(self):
         """题库题面比卷面多几个字(例如多了后缀说明文字), 应当命中。"""
         data = Path(self.tmp.name) / "contain.json"
-        data.write_text(json.dumps({"以下哪个是网络层协议（请选择）": "A"}, ensure_ascii=False),
+        data.write_text(json.dumps({"以下哪个是网络层协议 请选择": "A"}, ensure_ascii=False),
                         encoding="utf-8")
         bank = LocalBank(paths=[str(data)], fuzzy=True, contain_rate=0.75)
         bank.load()
@@ -345,7 +350,8 @@ class TestLocalBank(unittest.TestCase):
         broken.write_text(original, encoding="utf-8")
         bank = LocalBank(paths=[str(broken)], fuzzy=False)
         self.assertEqual(bank.load(), 0)
-        self.assertIn(str(broken), bank.failed_paths)
+        from api.tiku_bank import _path_key
+        self.assertIn(_path_key(broken), bank.failed_paths)
         self.assertIsNone(bank.save())                       # 拒绝写入
         self.assertEqual(broken.read_text(encoding="utf-8"), original)  # 原文没被动过
         # 显式确认要覆盖时才写
@@ -374,6 +380,123 @@ class TestLocalBank(unittest.TestCase):
         result2 = bank2.import_cache(cache2)
         self.assertEqual(result2["skipped"], 1)
         self.assertEqual(bank2.lookup("题目R"), "A")
+
+
+
+class TestProvenanceAndSafety(unittest.TestCase):
+    """第三轮验证报出的问题: 自动回写会覆盖人工修正 / 工具命令销毁题库 / 缓存格式与键不一致。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.tmpdir = Path(self.tmp.name)
+        self.bank_path = self.tmpdir / "bank.json"
+        self.cache_path = self.tmpdir / "cache.json"
+
+    def _load(self):
+        bank = LocalBank(paths=[str(self.bank_path)], fuzzy=False, reload_interval=0)
+        bank.load()
+        return bank
+
+    def test_auto_written_answer_can_be_corrected(self):
+        """没人动过的自动答案(答案 == auto_answer) 允许被下一轮自动更新。"""
+        self.bank_path.write_text(json.dumps(
+            {"题目Q": {"answer": "A", "source": "cache:cache.json", "auto_answer": "A"}},
+            ensure_ascii=False), encoding="utf-8")
+        self.cache_path.write_text(json.dumps({"题目Q": "B"}, ensure_ascii=False), encoding="utf-8")
+        bank = self._load()
+        result = bank.import_cache(self.cache_path)
+        self.assertEqual(result["overwritten"], 1)
+        self.assertEqual(bank.lookup("题目Q"), "B")
+        # 回写后的条目会记下这次自动写入的答案
+        bank.save()
+        data = json.loads(self.bank_path.read_text(encoding="utf-8"))
+        self.assertEqual(data["题目Q"]["auto_answer"], "B")
+
+    def test_hand_edited_answer_is_never_auto_reverted(self):
+        """回归(high): 人工把答案改对之后, 自动回写不得再用旧缓存的错答案覆盖它。"""
+        self.bank_path.write_text(json.dumps(
+            {"题目Q": {"answer": "B", "source": "cache:cache.json", "auto_answer": "A"}},
+            ensure_ascii=False), encoding="utf-8")
+        self.cache_path.write_text(json.dumps({"题目Q": "A"}, ensure_ascii=False), encoding="utf-8")
+        bank = self._load()
+        result = bank.import_cache(self.cache_path)
+        self.assertEqual(result["skipped"], 1)
+        self.assertEqual(result["overwritten"], 0)
+        self.assertEqual(bank.lookup("题目Q"), "B")
+
+    def test_source_prefix_check_is_normalized(self):
+        """回归(low): " Cache:x" / "CACHE:x" 不能被当成非缓存条目而受保护。"""
+        self.assertTrue(LocalBank._can_overwrite({"answer": "A", "source": " Cache:x"}, "auto"))
+        self.assertTrue(LocalBank._can_overwrite({"answer": "A", "source": "CACHE:x"}, "auto"))
+        self.assertFalse(LocalBank._can_overwrite({"answer": "A", "source": " import"}, "auto"))
+
+    def test_export_to_cache_uses_cache_key_format(self):
+        """回归(medium): 同步缓存必须用 Tiku.query 读缓存时的同一个键(clean_title 处理后)。"""
+        self.cache_path.write_text(json.dumps({"下列说法正确的是": "B"}, ensure_ascii=False),
+                                   encoding="utf-8")
+        self.bank_path.write_text(json.dumps({"（2.0分）下列说法正确的是": "A"}, ensure_ascii=False),
+                                  encoding="utf-8")
+        bank = self._load()
+        written = bank.export_to_cache(self.cache_path)
+        self.assertGreaterEqual(written, 1)
+        cached = json.loads(self.cache_path.read_text(encoding="utf-8"))
+        self.assertEqual(cached["下列说法正确的是"], "A")
+
+    def test_export_to_cache_refuses_broken_cache(self):
+        """回归(low): 损坏/非对象的缓存文件不能被整份覆盖。"""
+        original = '{"半截": "A"'
+        self.cache_path.write_text(original, encoding="utf-8")
+        self.bank_path.write_text(json.dumps({"题": "A"}, ensure_ascii=False), encoding="utf-8")
+        bank = self._load()
+        self.assertEqual(bank.export_to_cache(self.cache_path), 0)
+        self.assertIsNotNone(bank.last_refusal)
+        self.assertEqual(self.cache_path.read_text(encoding="utf-8"), original)
+
+    def test_export_to_cache_refuses_non_json_suffix(self):
+        cache_txt = self.tmpdir / "cache.txt"
+        cache_txt.write_text("{}", encoding="utf-8")
+        self.bank_path.write_text(json.dumps({"题": "A"}, ensure_ascii=False), encoding="utf-8")
+        bank = self._load()
+        self.assertEqual(bank.export_to_cache(cache_txt), 0)
+        self.assertIsNotNone(bank.last_refusal)
+
+    def test_merge_does_not_destroy_existing_bank(self):
+        """回归(medium): merge 命令必须把 --bank 里原有的题目也当作输入, 不能销毁。"""
+        self.bank_path.write_text(json.dumps({"老题目": "A"}, ensure_ascii=False), encoding="utf-8")
+        extra = self.tmpdir / "new.json"
+        extra.write_text(json.dumps({"新题目": "B"}, ensure_ascii=False), encoding="utf-8")
+        result = merge_bank_files([str(extra)], str(self.bank_path))
+        self.assertEqual(result["entries"], 2)
+        data = json.loads(self.bank_path.read_text(encoding="utf-8"))
+        self.assertEqual(set(data), {"老题目", "新题目"})
+
+    def test_merge_refuses_non_json_output(self):
+        text_bank = self.tmpdir / "myb.txt"
+        text_bank.write_text("题目甲----A\n", encoding="utf-8")
+        extra = self.tmpdir / "new2.json"
+        extra.write_text(json.dumps({"新题目": "B"}, ensure_ascii=False), encoding="utf-8")
+        result = merge_bank_files([str(extra)], str(text_bank))
+        self.assertIsNone(result["output"])
+        self.assertTrue(result["refusal"])
+
+    def test_text_bank_first_line_with_quote(self):
+        """回归(medium): 首行以 [ 开头且含引号的文本题库不能再被整份判成坏 JSON。"""
+        text_bank = self.tmpdir / "quote.txt"
+        text_bank.write_text('[判断题]What\'s this----正确\n[单选题]以下哪个是网络层协议----A\n',
+                             encoding="utf-8")
+        bank = LocalBank(paths=[str(text_bank)], fuzzy=False)
+        self.assertEqual(bank.load(), 2)
+        self.assertEqual(bank.lookup("[单选题]以下哪个是网络层协议"), "A")
+
+    def test_truncated_json_in_txt_is_still_rejected(self):
+        """反向保护: 截断的 JSON 放在 .txt 里也不能被当成题库(否则会把 JSON 片段当答案)。"""
+        bad = self.tmpdir / "trunc.txt"
+        bad.write_text('{"下列哪一项属于网络层的协议？": "A", "HTTP 是无状态协议": "正确"',
+                       encoding="utf-8")
+        bank = LocalBank(paths=[str(bad)], fuzzy=False)
+        self.assertEqual(bank.load(), 0)
+        self.assertTrue(any("json" in issue.lower() for issue in bank.issues), bank.issues)
 
 
 class TestHelpers(unittest.TestCase):
