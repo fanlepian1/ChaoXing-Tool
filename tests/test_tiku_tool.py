@@ -67,8 +67,9 @@ class TestLoadInput(unittest.TestCase):
         self.assertEqual(payload, {"题干C": "C"})
 
     def test_missing_file(self):
-        payload, skipped = tiku_tool.load_input(self.tmpdir / "nope.json")
-        self.assertEqual((payload, skipped), ([], 0))
+        # 输入文件不存在属于"解析失败", 要明确报错(而不是当成空文件静默通过)
+        with self.assertRaises(tiku_tool.InputParseError):
+            tiku_tool.load_input(self.tmpdir / "nope.json")
 
 
 class TestCommands(unittest.TestCase):

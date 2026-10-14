@@ -144,20 +144,22 @@ _RE_SCORE_SUFFIX = re.compile(r"\s*[（(]\s*\d+(?:\.\d+)?\s*分\s*[)）]\s*$")
 # 分值也可能出现在题面**开头**(题库导出常见: "（2.0分）下列说法正确的是")
 _RE_SCORE_PREFIX = re.compile(r"^\s*[（(]\s*\d+(?:\.\d+)?\s*分\s*[)）]\s*")
 _RE_VARIANT = str.maketrans({"⻛": "风", "⻔": "门", "⻋": "车", "⻢": "马", "⺠": "民", "⻓": "长"})
-# 括号不能直接删掉: "(0,1)区间" 与 "[0,1]区间" 是两道不同的题(开区间/闭区间),
-# 若都删成 "01区间" 就会撞成同一个 key -> 精确匹配假命中。这里把各类括号映射成互不相同的占位字符,
-# 既保留"括号种类"这个信息, 又不引入标点噪音。
-_BRACKET_SENTINEL = str.maketrans({
-    "(": "q", ")": "p",
-    "[": "b", "]": "d",
-    "【": "z", "】": "x",
-    "《": "n", "》": "m",
-    "{": "e", "}": "f",
-})
-_SENTINEL_CHARS = frozenset("qpb dzxnmef".replace(" ", ""))
-_RE_DROP = re.compile(r"[\s，。！？；：、,.!?;:'\"“”‘’`~!@#$%^&*\-_+=|\\/<>…·]")
 # 全角 ASCII -> 半角
 _FULLWIDTH = str.maketrans({chr(0xFF01 + i): chr(0x21 + i) for i in range(0x5E)})
+_WHITESPACE_RE = re.compile(r"\s+")
+
+# 纯格式噪音: 精确匹配时直接丢弃(题库与卷面常只差这些), 不会造成语义歧义
+_DROP_CHARS = frozenset(
+    " \t\r\n\u3000"
+    "\"'“”‘’`"
+    "\u3001\u3002\uff0c\uff1b\uff1a\uff01\uff1f\u00b7\u2026\u2014\uff5e"
+)
+# 括号类: 精确匹配时**保留**(区分 (0,1) 与 [0,1]), 模糊匹配时允许两边"只有括号不同"
+_NOISE_CHARS = frozenset("()[]{}（）【】《》〔〕〈〉「」『』")
+# 承载语义的标点(ASCII): 参与区分, 因为 3.5/35、1+1/11、0,5/05 是不同题目
+_SIGNIFICANT_CHARS = frozenset(".,+-*/=%:;!?&|^_~@#$<>")
+# 句读/数值共用的一批标点: 只在紧邻数字时按"内容"处理(见 compact_text)
+_AMBIGUOUS_PUNCT = frozenset(".,:;!?")
 
 # 纯文本题库的行分隔符(按优先级)与题型别名
 TEXT_SEPARATORS = ("----", "$$", "\t", "==>", "==", "|", " - ", "：")
@@ -169,8 +171,18 @@ TEXT_TYPE_ALIASES = {
 }
 
 
+def _is_word_char(ch: str) -> bool:
+    """词字符: 字母/数字/汉字等, 归一化后原样保留。"""
+    return ch.isalnum()
+
+
 def compact_text(text: Any) -> str:
-    """把题面归一化成用于匹配的紧凑串(去题号/标签/分值/标点/空白, 统一大小写与全半角)。"""
+    """把题面归一化成**无损**的精确匹配键。
+
+    步骤: 去题号/题型标签/分值前缀后缀, 统一异体字与全半角, 去空白,
+          词字符原样保留, 其余字符编码成 `~十六进制` —— 编码是单射的,
+          所以删标点导致的撞 key(3.5 vs 35、1+1 vs 11)不会再发生。
+    """
     if text is None:
         return ""
     s = str(text).translate(_FULLWIDTH).strip()
@@ -183,9 +195,50 @@ def compact_text(text: Any) -> str:
             break
         s = new
     s = s.translate(_RE_VARIANT)
-    s = s.translate(_BRACKET_SENTINEL)
-    s = _RE_DROP.sub("", s)
-    return s.lower()
+    s = _WHITESPACE_RE.sub("", s)
+    chars = s.lower()
+    parts = []
+    for index, ch in enumerate(chars):
+        if _is_word_char(ch):
+            parts.append(ch)
+            continue
+        if ch in _DROP_CHARS:
+            continue                      # 纯格式噪音(引号/中文句读/空白): 丢弃
+        if ch in _AMBIGUOUS_PUNCT:
+            # 句读 vs 内容: 只有紧邻数字时才算内容("3.5"、"1,2"、"0，5" 不能与 "35"、"12"、"05" 混同)
+            prev_digit = index > 0 and chars[index - 1].isdigit()
+            next_digit = index + 1 < len(chars) and chars[index + 1].isdigit()
+            if prev_digit or next_digit:
+                parts.append(f"~{ord(ch):x}")
+            continue
+        parts.append(f"~{ord(ch):x}")      # 括号/运算符等: 编码保留, 保证不同题目不会撞 key
+    return "".join(parts)
+
+
+def loose_key(key: str) -> str:
+    """精确键 -> 只保留词字符的宽松形式(用于模糊匹配)。"""
+    return _strip_tokens(key)
+
+
+def _strip_tokens(key: str) -> str:
+    """去掉所有 `~hex` 编码 token, 只留词字符。"""
+    return re.sub(r"~[0-9a-f]+", "", key)
+
+
+def noise_signature(key: str) -> str:
+    """格式噪音字符的签名(按出现顺序), 用于区分"只有括号种类不同"的不同题目。"""
+    return "".join(
+        token for token in re.findall(r"~[0-9a-f]+", key)
+        if chr(int(token[1:], 16)) in _NOISE_CHARS
+    )
+
+
+def significant_signature(key: str) -> str:
+    """承载语义的标点签名(. , + - * / = 等): 只要两边不同就判为不同题目。"""
+    return "".join(
+        token for token in re.findall(r"~[0-9a-f]+", key)
+        if chr(int(token[1:], 16)) in _SIGNIFICANT_CHARS
+    )
 
 
 def clean_title(text: Any) -> str:
@@ -251,6 +304,7 @@ def _pick(mapping: dict, keys: Iterable[str]) -> Any:
 
 def _entry_from_question_answer(question: Any, answer: Any, qtype: Any = None, source: Optional[str] = None,
                                 own_source: Any = None, own_auto: Any = None) -> Optional[dict]:
+    # 注: 纯文本行里带的内部字段(_line)不会进 entry
     text = str(question).strip() if question is not None else ""
     if not text:
         return None
@@ -364,31 +418,34 @@ def looks_like_json(text: str) -> bool:
     return head in ("{", "[")
 
 
-def looks_like_json_fragment(question: Any) -> bool:
+def _line_looks_like_json_junk(line: str) -> bool:
+    """整行以 {/[ 开头、却又没有任何文本题库分隔符 -> 几乎肯定是坏 JSON 的碎片。"""
+    stripped = str(line or "").strip()
+    if not stripped or stripped[0] not in "{[":
+        return False
+    return not any(sep in stripped for sep in TEXT_SEPARATORS)
+
+
+def looks_like_json_fragment(question: Any, line: Any = None) -> bool:
     """判断一条"题目"其实是不是被截断的 JSON 碎片(那种条目绝不能进题库)。
 
-    判定要"窄而准": 既要挡住被截断 JSON 切出来的碎片, 又不能误杀合法题面, 例如:
-        `["一带一路"]指的是什么倡议`、`字典 {"a": 1} 在 Python 里叫什么`、
-        `JSON 里 "key": "value" 的写法对吗`
+    只挡真正的碎片, 不误杀合法题面(例如 `[选] 关于 HTTP 的说法：正确的是`、
+    `["一带一路"]指的是什么倡议`、`字典 {"a": 1} 在 Python 里叫什么`)。
     """
     text = str(question or "").strip()
     if not text:
         return True
+    if line is not None and _line_looks_like_json_junk(str(line)):
+        return True
     if text[0] not in "{[":            # 不以 {/[ 开头的一律当正常题目
         return False
-    head = text[:80]
-    if '":' in head or "':" in head:                       # JSON 键值对特征 {"题干": "答案"
-        return True
-    if ":" in text[:20] or "：" in text[:20]:              # 无引号的 {题目一: A 特征
-        return True
-    if re.match(r'^\s*[\[{]\s*["\']', text) and ("," in head or "，" in head):
-        return True                                        # ["题干", "答案" 这种碎片
-    if re.match(r'^\s*[\[{]\s*["\'][^"\']*["\']\s*$', text):
-        return True                                        # ["题目一" 这种只剩一个带引号的括号片段
-    if text[0] == "{" and "}" not in text:
-        return True                                        # 括号不闭合 -> 碎片
-    if text[0] == "[" and "]" not in text:
-        return True
+    # {/[ 紧跟引号, 且没有闭合的括号 -> 是被截断的 JSON 片段
+    if re.match(r'^\s*[\[{]\s*["\']', text):
+        if text[0] == "{" and "}" not in text:
+            return True
+        if text[0] == "[" and "]" not in text:
+            return True
+        return False
     return False
 
 
@@ -510,7 +567,7 @@ def parse_text_entries(text: str) -> tuple[list[dict], int]:
                         q_type = TEXT_TYPE_ALIASES[part.lower()]
                         break
         if question and answer:
-            entry = {"question": question, "answer": answer}
+            entry = {"question": question, "answer": answer, "_line": line}
             if q_type:
                 entry["type"] = q_type
             entries.append(entry)
@@ -518,21 +575,6 @@ def parse_text_entries(text: str) -> tuple[list[dict], int]:
             skipped += 1
     return entries, skipped
 
-
-
-
-def bracket_signature(key: str) -> str:
-    """取出归一化串里的"括号种类签名"(只保留占位字符)。
-
-    用于判断两道题是不是"只有括号种类不同": (0,1) 与 [0,1] 是不同题目, 不能互相命中;
-    而《红楼梦》与红楼梦 是一边带括号的同一题, 应该允许模糊命中。
-    """
-    return "".join(ch for ch in key if ch in _SENTINEL_CHARS)
-
-
-def loose_key(key: str) -> str:
-    """去掉括号占位字符的形式, 只用于模糊匹配。"""
-    return "".join(ch for ch in key if ch not in _SENTINEL_CHARS)
 
 
 
@@ -551,7 +593,8 @@ def parse_bank_text(raw: str) -> tuple[list[dict], int]:
     返回 (可用条目, 被跳过的行数)。被过滤掉的伪条目也会计入跳过数, 避免"悄悄少了几道题"。
     """
     entries, skipped = parse_text_entries(raw)
-    credible = [item for item in entries if not looks_like_json_fragment(item.get("question"))]
+    credible = [item for item in entries
+                if not looks_like_json_fragment(item.get("question"), item.get("_line"))]
     skipped += len(entries) - len(credible)
     return credible, skipped
 
@@ -691,7 +734,8 @@ class LocalBank:
                 return None
 
             query_loose = loose_key(key)
-            query_sig = bracket_signature(key)
+            query_noise = noise_signature(key)
+            query_significant = significant_signature(key)
             if len(query_loose) < self.min_length:
                 return None
             candidates: list[tuple[float, dict]] = []
@@ -702,9 +746,12 @@ class LocalBank:
                 other_loose = loose_key(other)
                 if len(other_loose) < self.min_length:
                     continue
-                # 两边都带括号但括号种类不同 -> 是"只有括号不同"的不同题目, 不匹配
-                other_sig = bracket_signature(other)
-                if query_sig and other_sig and query_sig != other_sig:
+                # 护栏 1: 两边都带格式噪音(括号/引号)但种类不同 -> 是"只有括号不同"的不同题目
+                other_noise = noise_signature(other)
+                if query_noise and other_noise and query_noise != other_noise:
+                    continue
+                # 护栏 2: 承载语义的标点(. , + - 等)只要不同就是不同题目(3.5 vs 35、1+1 vs 11)
+                if query_significant != significant_signature(other):
                     continue
                 score = self._contain_score(query_loose, other_loose)
                 if score is None and self.similarity:
@@ -894,8 +941,23 @@ class LocalBank:
                 payload[title] = entry["answer"]
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(payload, ensure_ascii=False, indent=4), encoding="utf-8")
-        except OSError:
+            fd, tmp_path = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as fp:
+                    fp.write(json.dumps(payload, ensure_ascii=False, indent=4))
+                    fp.flush()
+                    os.fsync(fp.fileno())
+                os.replace(tmp_path, str(path))
+            except OSError as e:
+                self.last_refusal = f"{path}: 写入失败({e})"
+                try:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+                except OSError:
+                    pass
+                return 0
+        except OSError as e:
+            self.last_refusal = f"{path}: 写入失败({e})"
             return 0
         return written
 
@@ -934,6 +996,9 @@ class LocalBank:
             if _path_key(target) in self.failed_paths and not allow_failed_overwrite:
                 self.last_refusal = f"{target}: 该文件加载时解析失败, 为避免覆盖已跳过写回"
                 return None
+            if target.is_file() and target.stat().st_size == 0 and not allow_failed_overwrite:
+                self.last_refusal = f"{target}: 目标文件是 0 字节(可能是上次写入被中断), 已跳过写回"
+                return None
             if target.suffix.lower() not in JSON_SUFFIXES and not allow_failed_overwrite:
                 self.last_refusal = (f"{target}: 非 JSON 题库文件(题库写出格式固定为 JSON), "
                                      f"为避免改变你的文件格式已跳过写回; "
@@ -962,8 +1027,15 @@ class LocalBank:
                 # 原子写(临时文件 + os.replace): 避免并发读者看到"写了一半/0 字节"的题库
                 fd, tmp_path = tempfile.mkstemp(prefix=target.name + ".", dir=str(target.parent))
                 try:
+                    if target.suffix.lower() == ".jsonl":
+                        body = "".join(
+                            json.dumps({key: value}, ensure_ascii=False) + "\n"
+                            for key, value in data.items()
+                        )
+                    else:
+                        body = json.dumps(data, ensure_ascii=False, indent=indent) + "\n"
                     with os.fdopen(fd, "w", encoding="utf-8") as fp:
-                        fp.write(json.dumps(data, ensure_ascii=False, indent=indent) + "\n")
+                        fp.write(body)
                         fp.flush()
                         os.fsync(fp.fileno())
                     os.replace(tmp_path, str(target))
@@ -1008,5 +1080,7 @@ def merge_bank_files(inputs: Iterable[str | Path], output: str | Path, threshold
         input_list.insert(0, str(output))
     bank = LocalBank(paths=input_list, fuzzy=False, threshold=threshold, reload_interval=0)
     bank.load()
+    failed = any(item in bank.failed_paths for item in [_path_key(i) for i in input_list])
     written = bank.save(output)
-    return {"entries": len(bank), "output": written, "refusal": bank.last_refusal}
+    return {"entries": len(bank), "output": written, "refusal": bank.last_refusal,
+            "issues": list(bank.issues), "failed": failed}

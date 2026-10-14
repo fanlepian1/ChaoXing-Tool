@@ -339,6 +339,16 @@ class TestLocalBankPriority(TikuTestCase):
             self.assertTrue(server.requests)
 
 
+    def test_type_mismatched_bank_answer_falls_through_to_local_api(self):
+        """回归(N9): 题库答案类型不符时不能短路自建接口, 否则明明有接口可用却退化成随机作答。"""
+        self.write_bank({"单选题干": "正确"})   # 单选题却存了判断词 -> 类型不符, 且无法展开
+        with LocalTikuServer({"code": 1, "data": {"answer": "乙"}}) as server:
+            tiku = build_tiku(self.base_conf(local_api=server.url))
+            answer = tiku.query({"title": "单选题干", "type": "single", "options": "A. 甲\nB. 乙"})
+            self.assertEqual(answer, "乙")
+            self.assertTrue(server.requests, "类型不符时应当继续请求自建接口")
+
+
 class TestCacheValidation(TikuTestCase):
     def test_cache_entry_with_wrong_type_is_ignored(self):
         """回归: 缓存命中也要过类型校验, 否则旧版本写坏的类型不符答案会被一直返回。"""

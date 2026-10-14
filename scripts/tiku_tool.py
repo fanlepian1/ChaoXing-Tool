@@ -64,8 +64,7 @@ def load_input(path: Path, fmt: str = "auto") -> tuple[list[dict] | dict | list,
     否则会把截断 JSON 片段当题目/答案导入); 其余按纯文本解析。
     """
     if not path.is_file():
-        print(f"[tiku_tool] 跳过不存在的文件: {path}", file=sys.stderr)
-        return [], 0
+        raise InputParseError(f"{path} 不存在")
     raw = path.read_text(encoding="utf-8", errors="ignore")
     is_json_name = path.suffix.lower() in JSON_SUFFIXES
     if path.suffix.lower() == ".jsonl" and fmt == "auto":
@@ -101,9 +100,22 @@ def load_input(path: Path, fmt: str = "auto") -> tuple[list[dict] | dict | list,
     return parse_bank_text(raw)
 
 
+
+def _report_bank_issues(args) -> None:
+    """把题库/缓存文件的加载问题打出来(而不是静默忽略)。"""
+    bank = LocalBank(paths=args.bank, fuzzy=False, reload_interval=0)
+    bank.load()
+    for issue in bank.issues:
+        print(f"[tiku_tool] 提示: {issue}", file=sys.stderr)
+
+
 def cmd_stats(args) -> int:
     bank = LocalBank(paths=args.bank, fuzzy=False, reload_interval=0)
     count = bank.load()
+    _report_bank_issues(args)
+    if count == 0 and Path(args.bank).is_file():
+        print(f"[tiku_tool] 警告: {args.bank} 存在但解析出 0 条题目, 请检查文件内容", file=sys.stderr)
+        return 1
     info = bank.stats()
     print(f"题库文件: {', '.join(info['paths'])}")
     print(f"  实际加载文件: {', '.join(info['files']) or '(空)'}")
@@ -198,23 +210,30 @@ def cmd_import(args) -> int:
         return 1
     print(f"[tiku_tool] 题库已保存: {output} ({before} -> {len(bank)} 条, "
           f"跳过 {total_skipped_lines} 行)")
-    if failed_inputs:
-        print("[tiku_tool] 有 %d 个输入文件没能解析, 请检查后重试: %s"
-              % (len(failed_inputs), ", ".join(failed_inputs)), file=sys.stderr)
-        return 1
+    cache_failed = False
     if args.sync_cache:
         synced = bank.export_to_cache(args.cache)
         if bank.last_refusal:
             print(f"[tiku_tool] 缓存同步失败: {bank.last_refusal}", file=sys.stderr)
-            return 1
-        print(f"[tiku_tool] 已把题库答案写入缓存: {args.cache}(更新 {synced} 条), "
-              f"避免旧缓存继续优先返回旧答案")
-    return 0
+            cache_failed = True
+        else:
+            print(f"[tiku_tool] 已把题库答案写入缓存: {args.cache}(更新 {synced} 条), "
+                  f"避免旧缓存继续优先返回旧答案")
+    if failed_inputs:
+        print("[tiku_tool] 有 %d 个输入文件没能解析, 请检查后重试: %s"
+              % (len(failed_inputs), ", ".join(failed_inputs)), file=sys.stderr)
+        return 1
+    return 1 if cache_failed else 0
 
 
 def cmd_merge(args) -> int:
     # merge_bank_files 会把已存在的输出文件也当成输入, 所以不会丢掉 --bank 里原有的题目
     result = merge_bank_files(args.input, args.bank, threshold=0.9)
+    for issue in result.get("issues", []):
+        print(f"[tiku_tool] 提示: {issue}", file=sys.stderr)
+    if result.get("failed"):
+        print("[tiku_tool] 有输入文件解析失败, 合并结果不完整, 已返回非零", file=sys.stderr)
+        return 1
     if result["output"] is None:
         print(f"[tiku_tool] 已跳过写回: {result.get('refusal') or args.bank}\n          (想写到别的文件请用 --bank x.json)", file=sys.stderr)
         return 1
@@ -266,27 +285,42 @@ def cmd_dedupe(args) -> int:
 
 
 def cmd_migrate(args) -> int:
-    """给旧格式题库补 auto_answer(来源是缓存的条目), 让存量题库重新可以被自动纠正。"""
+    """旧格式题库规整: 1) 先把题库答案同步进缓存(避免人工修正被随后的自动回写覆盖)
+    2) 再给"来源是缓存"的条目补 auto_answer, 让它们重新可以被自动纠正。
+
+    顺序很关键: 先同步缓存, 缓存内容就与题库一致了; 之后即使自动回写也不会把答案改回旧的。
+    """
+    refusal = _check_output_target(args)
+    if refusal:
+        print(f"[tiku_tool] {refusal}", file=sys.stderr)
+        return 1
     bank = LocalBank(paths=args.bank, fuzzy=False, reload_interval=0)
     before = bank.load()
     for issue in bank.issues:
         print(f"[tiku_tool] 提示: {issue}", file=sys.stderr)
+    synced = bank.export_to_cache(args.cache)
+    if bank.last_refusal:
+        print(f"[tiku_tool] 缓存同步失败, 已停止: {bank.last_refusal}", file=sys.stderr)
+        return 1
     stamped = bank.stamp_auto_answers()
     if args.dry_run:
-        print(f"[tiku_tool] dry-run: 可给 {stamped} 条缓存来源的条目补 auto_answer(未写盘)")
+        print(f"[tiku_tool] dry-run: 可同步 {synced} 条到缓存, 给 {stamped} 条缓存来源的条目补 "
+              f"auto_answer(未写盘)")
         return 0
     output = bank.save(args.output or args.bank)
     if output is None:
         print(f"[tiku_tool] 已跳过写回: {bank.last_refusal or args.bank}", file=sys.stderr)
         return 1
-    print(f"[tiku_tool] 已规整 {before} 条题库: 补 auto_answer {stamped} 条 -> {output}("
-          f"这些条目以后能被自动纠正, 人工改过的仍然受保护)")
+    print(f"[tiku_tool] 已规整 {before} 条题库: 同步 {synced} 条答案到缓存, "
+          f"补 auto_answer {stamped} 条 -> {output}")
+    print("[tiku_tool] 缓存在此之前已与题库对齐, 所以这些条目以后可以被自动纠正而不会退回旧答案")
     return 0
 
 
 def cmd_cache(args) -> int:
     """答案缓存维护: 缓存是派生产物, 怀疑被污染时直接清掉重新积累即可。"""
     path = Path(args.cache)
+    _report_bank_issues(args)
     if args.action == "stats":
         if not path.is_file():
             print(f"[tiku_tool] 缓存不存在: {path}")
@@ -362,8 +396,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_dedupe)
 
     p = sub.add_parser("migrate", parents=[common],
-                       help="旧格式题库规整: 给缓存来源的条目补 auto_answer, 让它们重新可自愈")
+                       help="旧格式题库规整: 先同步缓存, 再给缓存来源的条目补 auto_answer 让它重新可自愈")
     p.add_argument("--output", "-o", default=None, help="输出文件(默认覆盖 --bank)")
+    p.add_argument("--force", action="store_true", help="允许 --output 覆盖已存在的题库文件")
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(func=cmd_migrate)
 

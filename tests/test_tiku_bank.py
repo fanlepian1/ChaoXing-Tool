@@ -35,11 +35,27 @@ class TestCompactText(unittest.TestCase):
         # 小数一律按"题面内容"处理: "3.5 英寸是几厘米" 与 "2.5 英寸是几厘米" 是不同题目,
         # 一旦当编号剥掉就会撞 key + 错答案。代价是 "3.5 题干" 这种小节编号也不会被剥(已知漏配,
         # 交给包含式模糊兜底), 这是刻意的取舍: 宁可不命中, 也不能给错答案。
-        self.assertEqual(compact_text("3.5GHz频段属于什么波"), "35ghz频段属于什么波")
-        self.assertEqual(compact_text("1921.7.1 发生了什么"), "192171发生了什么")
+        self.assertEqual(compact_text("3.5GHz频段属于什么波"), "3~2e5ghz频段属于什么波")
+        self.assertEqual(compact_text("1921.7.1 发生了什么"), "1921~2e7~2e1发生了什么")
         self.assertNotEqual(compact_text("3.5 英寸是几厘米"), compact_text("2.5 英寸是几厘米"))
         self.assertNotEqual(compact_text("2.0 版本的新功能"), compact_text("3.0 版本的新功能"))
-        self.assertEqual(compact_text("3.5 英寸是几厘米"), "35英寸是几厘米")
+        self.assertEqual(compact_text("3.5 英寸是几厘米"), "3~2e5英寸是几厘米")
+
+    def test_punctuation_that_carries_meaning_is_kept(self):
+        """回归(blocker): 删标点会让 3.5/35、1+1/11、0,5/05 撞成同一个 key -> 错答案 + 丢题。"""
+        pairs = [("3.5 英寸等于多少厘米", "35 英寸等于多少厘米"),
+                 ("1+1 等于几", "1-1 等于几"),
+                 ("0,5 是多少", "05 是多少"),
+                 ("1,2,3都正确", "123都正确")]
+        for a, b in pairs:
+            self.assertNotEqual(compact_text(a), compact_text(b), f"撞 key: {a} / {b}")
+
+    def test_real_letters_are_never_treated_as_brackets(self):
+        """回归(high): 用字母当括号占位符会让 z 检验/t 检验 互相命中 -> 错答案。"""
+        for left, right in (("z 检验用于什么场景", "t 检验用于什么场景"),
+                            ("x 轴表示什么", "y 轴表示什么"),
+                            ("p 值是什么", "t 值是什么")):
+            self.assertNotEqual(compact_text(left), compact_text(right))
 
     def test_leading_number_that_is_part_of_question_is_kept(self):
         """回归: 题号必须带分隔符/括号, 否则 3D/4G/1921年 这种会被削掉首字符, 不同题目撞成同一个 key。"""
@@ -49,7 +65,7 @@ class TestCompactText(unittest.TestCase):
             "4G网络与5G网络的差别": "4g网络与5g网络的差别",
             "1921年中国共产党成立": "1921年中国共产党成立",
             "2个字节等于多少位": "2个字节等于多少位",
-            "3.5GHz频段属于什么波": "35ghz频段属于什么波",
+            "3.5GHz频段属于什么波": "3~2e5ghz频段属于什么波",
         }
         for raw, expect in cases.items():
             self.assertEqual(compact_text(raw), expect)
@@ -59,12 +75,11 @@ class TestCompactText(unittest.TestCase):
     def test_brackets_are_only_stripped_when_they_are_labels(self):
         """回归: [0,1] / (2,3) / 【0,1】 / 【2024】 这种是题面内容, 不能当题型标签删掉。"""
         # 全角书名括号以前是无条件削掉的, 同样会造成不同题目撞 key
-        self.assertEqual(compact_text("【0,1】区间上的函数有界"), "z01x区间上的函数有界")
+        self.assertEqual(compact_text("[0,1]区间上的函数"), "~5b0~2c1~5d区间上的函数")
+        self.assertEqual(compact_text("(2,3)区间上的函数"), "~282~2c3~29区间上的函数")
         self.assertNotEqual(compact_text("【0,1】区间上的函数有界"), compact_text("【1,2】区间上的函数有界"))
         self.assertNotEqual(compact_text("【2024】大事记"), compact_text("【2025】大事记"))
         self.assertNotEqual(compact_text("【第一章】绪论"), compact_text("【第二章】绪论"))
-        self.assertEqual(compact_text("[0,1]区间上的函数"), "b01d区间上的函数")
-        self.assertEqual(compact_text("(2,3)区间上的函数"), "q23p区间上的函数")
         # 开区间/闭区间/书名括号是**不同的题目**, 绝不能撞成同一个 key
         keys = {compact_text("(0,1)区间上的函数有界"), compact_text("[0,1]区间上的函数有界"),
                 compact_text("【0,1】区间上的函数有界")}
@@ -82,8 +97,11 @@ class TestCompactText(unittest.TestCase):
         self.assertEqual(clean_title("（2.0分）下列说法正确的是"), "下列说法正确的是")
 
     def test_unify_fullwidth_and_punctuation(self):
-        # 括号不会被直接删掉, 而是映射成占位字符(见括号占位符用例): 空括号 -> qp
-        self.assertEqual(compact_text("ＴＣＰ协议，工作在（）层"), "tcp协议工作在qp层")
+        # 中文逗号是句读(丢弃), 空括号是内容(编码保留, 见括号用例)
+        self.assertEqual(compact_text("ＴＣＰ协议，工作在（）层"), "tcp协议工作在~28~29层")
+        # 题末问号、句中冒号都属于句读, 不影响题目身份
+        self.assertEqual(compact_text("以下哪个是网络层协议？"), compact_text("以下哪个是网络层协议"))
+        self.assertEqual(compact_text("正确的是：以下哪个"), compact_text("正确的是以下哪个"))
 
     def test_normalize_variant_chars(self):
         self.assertEqual(compact_text("⻛险管理"), compact_text("风险管理"))

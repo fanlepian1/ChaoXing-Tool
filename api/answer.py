@@ -1501,12 +1501,20 @@ class TikuLocal(Tiku):
         return self._normalize_answer_for_question(answer, q_info)
 
     def _query(self, q_info: dict) -> Optional[str]:
+        q_type = q_info.get('type')
         answer = self.query_local(q_info)
+        if answer and q_type and not check_answer(answer, q_type, self):
+            # 本地题库里的答案与题型不符(例如判断题存了选项字母): 不能因此短路后面的来源,
+            # 否则明明有自建接口/外部题库可用, 却退化成随机作答。
+            logger.info(f'{self.name}本地答案与题型不符, 继续尝试其他来源: {answer}')
+            answer = None
         if not answer and self._api_url and not self._api_failed:
-            answer = self._query_api(q_info)
+            api_answer = self._query_api(q_info)
+            if api_answer:
+                answer = self._normalize_answer_for_question(api_answer, q_info)
         if not answer:
             return None
-        return self._normalize_answer_for_question(answer, q_info)
+        return answer
 
     def _lookup_bank(self, question: str) -> Optional[str]:
         if not self.bank or not question:
