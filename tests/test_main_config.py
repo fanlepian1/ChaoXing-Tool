@@ -76,6 +76,14 @@ class TestResolveTikuConfig(unittest.TestCase):
         conf = main_module.resolve_tiku_config({"delay": "abc"}, None, {})
         self.assertEqual(conf["delay"], 1.0)  # 回落到默认值, 而不是把字符串塞给 time.sleep
 
+    def test_empty_file_values_do_not_override_defaults(self):
+        """配置模板里有大量空值(如 cache_file=), 它们不能把默认值冲掉。"""
+        conf = main_module.resolve_tiku_config({"cache_file": "", "local_bank": "  ",
+                                                "provider": "TikuLocal", "local_api": ""}, None, {})
+        self.assertEqual(conf["cache_file"], "tiku/cache.json")
+        self.assertEqual(conf["local_bank"], "tiku/bank.json")
+        self.assertEqual(conf["provider"], "TikuLocal")
+
     def test_tiku_opt_overrides(self):
         fake_args = type("A", (), {
             "tiku_provider": None, "tiku_tokens": None, "tiku_url": None, "tiku_endpoint": None,
@@ -180,6 +188,26 @@ class TestConfigFileIntegration(unittest.TestCase):
             "tiku_cover_rate": None, "tiku_delay": None, "tiku_export_bank": False, "tiku_opt": None,
             "no_tiku": False,
         })()
+
+    def test_init_config_merges_file_env_and_defaults(self):
+        """走真实的 init_config(): 文件空值不覆盖默认值, 环境变量优先级更高。"""
+        ini = self.tmpdir / "config.ini"
+        ini.write_text("[common]\nusername = u\npassword = p\ncourse_list =\n\n"
+                       "[tiku]\nprovider = TikuLocal\ncache_file =\nlocal_bank =\n\n"
+                       "[notification]\nprovider = ServerChan\nurl =\n",
+                       encoding="utf-8")
+        env = {"CHAOXING_NOTIFY_URL": "https://sctapi.ftqq.com/K.send",
+               "CHAOXING_JOBS": "6"}
+        with mock.patch.object(sys, "argv", ["main.py", "--config", str(ini)]):
+            with mock.patch.dict(os.environ, env, clear=True):
+                common, tiku_config, notify = main_module.init_config()
+        self.assertEqual(notify["url"], "https://sctapi.ftqq.com/K.send")
+        self.assertEqual(notify["provider"], "ServerChan")
+        self.assertEqual(tiku_config["cache_file"], "tiku/cache.json")   # 默认值没被空值冲掉
+        self.assertEqual(tiku_config["local_bank"], "tiku/bank.json")
+        self.assertEqual(tiku_config["provider"], "TikuLocal")
+        self.assertEqual(common["jobs"], 6)                              # 环境变量覆盖文件默认
+        self.assertEqual(common["username"], "u")
 
     def test_export_tiku_bank_merges_cache(self):
         bank = self.tmpdir / "bank.json"

@@ -289,6 +289,9 @@ def resolve_tiku_config(file_config: dict = None, args=None, env: dict = None) -
     for key, value in (file_config or {}).items():
         if value is None:
             continue
+        if isinstance(value, str) and not value.strip():
+            # 配置文件里的空值(模板里大量存在)不应该覆盖掉默认值
+            continue
         conf[key] = value.strip() if isinstance(value, str) else value
     conf.update(collect_tiku_config_from_env(env))
     if args is not None:
@@ -411,7 +414,10 @@ def init_config():
 
     common_config = build_common_config(args, file_common)
     tiku_config = resolve_tiku_config(file_tiku, args, os.environ)
-    notification_config = {**collect_notification_config_from_env(), **file_notify}
+    # 通知: 空值(模板里的 url=)不覆盖, 且环境变量优先级高于配置文件
+    notification_config = {key: value for key, value in (file_notify or {}).items()
+                           if value is not None and str(value).strip()}
+    notification_config.update(collect_notification_config_from_env())
     return common_config, tiku_config, notification_config
 
 
