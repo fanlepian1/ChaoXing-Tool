@@ -258,12 +258,22 @@ class TestCommands(unittest.TestCase):
         data = json.loads(self.bank.read_text(encoding="utf-8"))
         self.assertEqual(len(data), 2)
 
-    def test_migrate_command(self):
+    def test_migrate_requires_explicit_cache(self):
         self.bank.write_text(json.dumps({"题目A": {"answer": "A", "source": "cache:cache.json"}},
                                        ensure_ascii=False), encoding="utf-8")
-        self.assertEqual(tiku_tool.main(["migrate", "--bank", str(self.bank)]), 0)
+        # 不显式给 --cache 时不能猜缓存位置(否则会同步到你没在用的缓存)
+        self.assertEqual(tiku_tool.main(["migrate", "--bank", str(self.bank)]), 1)
+        code = tiku_tool.main(["migrate", "--bank", str(self.bank),
+                                "--sync-cache-to", str(self.cache)])
+        self.assertEqual(code, 0)
         data = json.loads(self.bank.read_text(encoding="utf-8"))
         self.assertEqual(data["题目A"]["auto_answer"], "A")
+
+    def test_import_of_unsupported_json_reports_failure(self):
+        src = self.tmpdir / "pairs.json"
+        src.write_text(json.dumps([["问题一", "A"]]), encoding="utf-8")
+        code = tiku_tool.main(["import", "--bank", str(self.bank), "--input", str(src)])
+        self.assertEqual(code, 1)   # 解析成功但 0 条题目 -> 明确报错
 
     def test_bank_flag_after_subcommand(self):
         # 文档里写的是 `stats --bank xxx`, 解析器必须支持这个顺序

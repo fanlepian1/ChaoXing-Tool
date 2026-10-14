@@ -44,6 +44,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from api.tiku_bank import (  # noqa: E402
     DEFAULT_BANK_PATH,
+    clean_title,
     collect_entries,
     DEFAULT_CACHE_PATH,
     JSON_SUFFIXES,
@@ -142,11 +143,11 @@ def cmd_lookup(args) -> int:
     if not count:
         return 1
     answer = bank.lookup(args.question)
-    key = compact_text(args.question)
     if answer:
         print(f"命中: {answer}")
         return 0
-    print(f"未命中: {key[:60]}{'...' if len(key) > 60 else ''}")
+    shown = clean_title(args.question) or args.question
+    print(f"未命中: {shown[:60]}{'...' if len(shown) > 60 else ''}")
     if args.add:
         if not sys.stdin or not sys.stdin.isatty():
             print("[tiku_tool] 非交互环境无法交互补录, 请用 import 维护题库", file=sys.stderr)
@@ -189,6 +190,7 @@ def cmd_import(args) -> int:
     before = bank.load()
     total_added = total_skipped = total_skipped_lines = 0
     failed_inputs: list[str] = []
+    empty_inputs: list[str] = []
     for item in args.input:
         try:
             payload, skipped_lines = load_input(Path(item), args.format)
@@ -196,6 +198,11 @@ def cmd_import(args) -> int:
             print(f"[tiku_tool] 跳过无法解析的输入: {e}", file=sys.stderr)
             failed_inputs.append(str(item))
             continue
+        recognized = len(collect_entries(payload))
+        if recognized == 0:
+            empty_inputs.append(str(item))
+            print(f"[tiku_tool] 警告: {item} 解析成功但没有识别出任何题目(结构可能不被支持)",
+                  file=sys.stderr)
         total_skipped_lines += skipped_lines
         result = bank.merge(payload, source=Path(item).name)
         total_added += result["added"]
@@ -222,6 +229,10 @@ def cmd_import(args) -> int:
     if failed_inputs:
         print("[tiku_tool] 有 %d 个输入文件没能解析, 请检查后重试: %s"
               % (len(failed_inputs), ", ".join(failed_inputs)), file=sys.stderr)
+        return 1
+    if empty_inputs:
+        print("[tiku_tool] 有 %d 个输入文件没导入任何题目: %s"
+              % (len(empty_inputs), ", ".join(empty_inputs)), file=sys.stderr)
         return 1
     return 1 if cache_failed else 0
 
@@ -294,6 +305,11 @@ def cmd_migrate(args) -> int:
     if refusal:
         print(f"[tiku_tool] {refusal}", file=sys.stderr)
         return 1
+    if not getattr(args, "sync_cache_to", None):
+        print("[tiku_tool] migrate 必须显式指定 --sync-cache-to <缓存文件>, "
+              "否则可能同步到你没在用的缓存却声称已对齐", file=sys.stderr)
+        return 1
+    args.cache = args.sync_cache_to
     bank = LocalBank(paths=args.bank, fuzzy=False, reload_interval=0)
     before = bank.load()
     for issue in bank.issues:
@@ -397,6 +413,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("migrate", parents=[common],
                        help="旧格式题库规整: 先同步缓存, 再给缓存来源的条目补 auto_answer 让它重新可自愈")
+    # 用专属参数(而不是公共 --cache): 公共参数的默认值会覆盖 set_defaults, 无法判断是否显式指定
+    p.add_argument("--sync-cache-to", dest="sync_cache_to", default=None,
+                   help="必填: 把题库答案同步进哪个缓存文件(不默认, 免得同步到你没在用的缓存)")
     p.add_argument("--output", "-o", default=None, help="输出文件(默认覆盖 --bank)")
     p.add_argument("--force", action="store_true", help="允许 --output 覆盖已存在的题库文件")
     p.add_argument("--dry-run", action="store_true")

@@ -35,11 +35,11 @@ class TestCompactText(unittest.TestCase):
         # 小数一律按"题面内容"处理: "3.5 英寸是几厘米" 与 "2.5 英寸是几厘米" 是不同题目,
         # 一旦当编号剥掉就会撞 key + 错答案。代价是 "3.5 题干" 这种小节编号也不会被剥(已知漏配,
         # 交给包含式模糊兜底), 这是刻意的取舍: 宁可不命中, 也不能给错答案。
-        self.assertEqual(compact_text("3.5GHz频段属于什么波"), "3~2e5ghz频段属于什么波")
-        self.assertEqual(compact_text("1921.7.1 发生了什么"), "1921~2e7~2e1发生了什么")
+        self.assertEqual(compact_text("3.5GHz频段属于什么波"), "3~2e,5ghz频段属于什么波")
+        self.assertEqual(compact_text("1921.7.1 发生了什么"), "1921~2e,7~2e,1发生了什么")
         self.assertNotEqual(compact_text("3.5 英寸是几厘米"), compact_text("2.5 英寸是几厘米"))
         self.assertNotEqual(compact_text("2.0 版本的新功能"), compact_text("3.0 版本的新功能"))
-        self.assertEqual(compact_text("3.5 英寸是几厘米"), "3~2e5英寸是几厘米")
+        self.assertEqual(compact_text("3.5 英寸是几厘米"), "3~2e,5英寸是几厘米")
 
     def test_punctuation_that_carries_meaning_is_kept(self):
         """回归(blocker): 删标点会让 3.5/35、1+1/11、0,5/05 撞成同一个 key -> 错答案 + 丢题。"""
@@ -65,7 +65,7 @@ class TestCompactText(unittest.TestCase):
             "4G网络与5G网络的差别": "4g网络与5g网络的差别",
             "1921年中国共产党成立": "1921年中国共产党成立",
             "2个字节等于多少位": "2个字节等于多少位",
-            "3.5GHz频段属于什么波": "3~2e5ghz频段属于什么波",
+            "3.5GHz频段属于什么波": "3~2e,5ghz频段属于什么波",
         }
         for raw, expect in cases.items():
             self.assertEqual(compact_text(raw), expect)
@@ -75,15 +75,17 @@ class TestCompactText(unittest.TestCase):
     def test_brackets_are_only_stripped_when_they_are_labels(self):
         """回归: [0,1] / (2,3) / 【0,1】 / 【2024】 这种是题面内容, 不能当题型标签删掉。"""
         # 全角书名括号以前是无条件削掉的, 同样会造成不同题目撞 key
-        self.assertEqual(compact_text("[0,1]区间上的函数"), "~5b0~2c1~5d区间上的函数")
-        self.assertEqual(compact_text("(2,3)区间上的函数"), "~282~2c3~29区间上的函数")
+        self.assertEqual(compact_text("[0,1]区间上的函数"), "~5b,0~2c,1~5d,区间上的函数")
+        self.assertEqual(compact_text("(2,3)区间上的函数"), "~28,2~2c,3~29,区间上的函数")
         self.assertNotEqual(compact_text("【0,1】区间上的函数有界"), compact_text("【1,2】区间上的函数有界"))
         self.assertNotEqual(compact_text("【2024】大事记"), compact_text("【2025】大事记"))
         self.assertNotEqual(compact_text("【第一章】绪论"), compact_text("【第二章】绪论"))
         # 开区间/闭区间/书名括号是**不同的题目**, 绝不能撞成同一个 key
         keys = {compact_text("(0,1)区间上的函数有界"), compact_text("[0,1]区间上的函数有界"),
                 compact_text("【0,1】区间上的函数有界")}
-        self.assertEqual(len(keys), 3, keys)
+        self.assertEqual(len(keys), 2, keys)   # 【】是 [] 的中文写法, 视为同一种括号
+        self.assertEqual(compact_text("【0,1】区间上的函数有界"),
+                         compact_text("[0,1]区间上的函数有界"))
         # 真正的题型标签要照旧剥掉(全角半角都要认)
         self.assertEqual(compact_text("（判断题）HTTP是无状态的"), "http是无状态的")
         self.assertEqual(compact_text("(单选题)以下哪个"), "以下哪个")
@@ -98,7 +100,7 @@ class TestCompactText(unittest.TestCase):
 
     def test_unify_fullwidth_and_punctuation(self):
         # 中文逗号是句读(丢弃), 空括号是内容(编码保留, 见括号用例)
-        self.assertEqual(compact_text("ＴＣＰ协议，工作在（）层"), "tcp协议工作在~28~29层")
+        self.assertEqual(compact_text("ＴＣＰ协议，工作在（）层"), "tcp协议工作在~28,~29,层")
         # 题末问号、句中冒号都属于句读, 不影响题目身份
         self.assertEqual(compact_text("以下哪个是网络层协议？"), compact_text("以下哪个是网络层协议"))
         self.assertEqual(compact_text("正确的是：以下哪个"), compact_text("正确的是以下哪个"))
@@ -640,6 +642,50 @@ class TestRound4Safety(unittest.TestCase):
         self.assertEqual(result["skipped"], 1)
         self.assertEqual(reloaded.lookup("题目A"), "C")
         self.assertEqual(reloaded.lookup("题目B"), "B")
+
+
+
+class TestRound6Normalization(unittest.TestCase):
+    """第六轮验证报出的问题: token 吞字符、中文标点规范化、ASCII 词中间切口的偷答案。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_token_parsing_does_not_swallow_content(self):
+        """回归(blocker): 键里数字与 a-f 是原样保留的, token 必须带分隔符, 否则会把内容吞掉/崩溃。"""
+        from api.tiku_bank import loose_key, noise_signature, significant_signature
+        # 长数字/十六进制样内容不能触发 chr() 越界
+        self.assertEqual(noise_signature(compact_text("验证(1234567)这个数是不是质数")), "~28,~29,")
+        self.assertEqual(significant_signature(compact_text("圆周率 3.14159265358979323846 的近似值")), "~2e,")
+        self.assertEqual(loose_key(compact_text("化简 1/2+1/3 的结果")), "化简1213的结果")
+
+    def test_punctuation_canonicalization(self):
+        """中文标点规范化: 6—4 等于 6-4、3。14 等于 3.14、1、2 等于 1,2, 但都不等于去掉标点的形式。"""
+        self.assertEqual(compact_text("6—4 的结果是"), compact_text("6-4 的结果是"))
+        self.assertNotEqual(compact_text("6—4 的结果是"), compact_text("64 的结果是"))
+        self.assertEqual(compact_text("圆周率是3。14"), compact_text("圆周率是3.14"))
+        self.assertNotEqual(compact_text("圆周率是3。14"), compact_text("圆周率是314"))
+        self.assertEqual(compact_text("1、2相加"), compact_text("1,2相加"))
+        self.assertNotEqual(compact_text("1、2相加"), compact_text("12相加"))
+
+    def test_string_brackets_are_same_as_ascii_brackets(self):
+        self.assertEqual(compact_text("【0,1】区间"), compact_text("[0,1]区间"))
+        self.assertNotEqual(compact_text("(0,1)区间"), compact_text("[0,1]区间"))
+
+    def test_ambiguous_punctuation_needs_words_on_both_sides(self):
+        """点(x,y) 与 点(xy) 是不同题目; 但题末问号算句读。"""
+        self.assertNotEqual(compact_text("点(x,y)"), compact_text("点(xy)"))
+        self.assertEqual(compact_text("What is 2+2?"), compact_text("What is 2+2"))
+
+    def test_containment_does_not_cut_ascii_words(self):
+        """回归(high): 'm 是什么单位' 不能命中 'cm 是什么单位'(切在 ASCII 词中间)。"""
+        data = Path(self.tmp.name) / "units.json"
+        data.write_text(json.dumps({"m 是什么单位": "米"}, ensure_ascii=False), encoding="utf-8")
+        bank = LocalBank(paths=[str(data)], fuzzy=True, contain_rate=0.75, min_length=5, reload_interval=0)
+        bank.load()
+        self.assertIsNone(bank.lookup("cm 是什么单位"))
+        self.assertEqual(bank.lookup("m 是什么单位"), "米")
 
 
 class TestHelpers(unittest.TestCase):

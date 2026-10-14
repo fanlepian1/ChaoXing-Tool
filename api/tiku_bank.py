@@ -148,18 +148,28 @@ _RE_VARIANT = str.maketrans({"⻛": "风", "⻔": "门", "⻋": "车", "⻢": "�
 _FULLWIDTH = str.maketrans({chr(0xFF01 + i): chr(0x21 + i) for i in range(0x5E)})
 _WHITESPACE_RE = re.compile(r"\s+")
 
-# 纯格式噪音: 精确匹配时直接丢弃(题库与卷面常只差这些), 不会造成语义歧义
+# 中文/全角标点先规范化成 ASCII 对应物, 再分类:
+#   6—4 与 6-4 视为同一题、3。14 与 3.14 视为同一题、1、2 与 1,2 视为同一题;
+#   (0,1) 与 [0,1] 的差异保留(【】是 [] 的中文写法, 视为同一种括号)
+_CANONICALIZE = {
+    "\u3002": ".", "\u3001": ",", "\u00b7": ".", "\uff0e": ".",
+    "\u2014": "-", "\u2013": "-", "\u2212": "-", "\u2010": "-", "\u2011": "-",
+    "\u3010": "[", "\u3011": "]", "\u3014": "[", "\u3015": "]",
+}
+# 纯格式噪音: 精确匹配时直接丢弃
 _DROP_CHARS = frozenset(
     " \t\r\n\u3000"
-    "\"'“”‘’`"
-    "\u3001\u3002\uff0c\uff1b\uff1a\uff01\uff1f\u00b7\u2026\u2014\uff5e"
+    "\"'“”‘’`「」『』《》"
+    "\u2026\uff5e\u2027"
 )
-# 括号类: 精确匹配时**保留**(区分 (0,1) 与 [0,1]), 模糊匹配时允许两边"只有括号不同"
-_NOISE_CHARS = frozenset("()[]{}（）【】《》〔〕〈〉「」『』")
-# 承载语义的标点(ASCII): 参与区分, 因为 3.5/35、1+1/11、0,5/05 是不同题目
-_SIGNIFICANT_CHARS = frozenset(".,+-*/=%:;!?&|^_~@#$<>")
-# 句读/数值共用的一批标点: 只在紧邻数字时按"内容"处理(见 compact_text)
-_AMBIGUOUS_PUNCT = frozenset(".,:;!?")
+# 括号类: 精确匹配时保留(区分 (0,1) 与 [0,1]), 模糊匹配时允许两边"只有括号不同"
+_NOISE_CHARS = frozenset("()[]{}（）〈〉")
+# 承载语义的 ASCII 运算符
+_SIGNIFICANT_CHARS = frozenset("+-*/=%&|^_~@#$<>")
+# 句读/数值共用的一批标点: ?/! 永远算句读; . , : ; 只在"两侧都是数字"或
+# "两侧都是 ASCII 字母数字"时算内容(3.5 / 1,2 / 点(x,y)), 否则算句读丢弃
+_SENTENCE_PUNCT = frozenset("?!")
+_AMBIGUOUS_PUNCT = frozenset(".,:;")
 
 # 纯文本题库的行分隔符(按优先级)与题型别名
 TEXT_SEPARATORS = ("----", "$$", "\t", "==>", "==", "|", " - ", "：")
@@ -179,9 +189,11 @@ def _is_word_char(ch: str) -> bool:
 def compact_text(text: Any) -> str:
     """把题面归一化成**无损**的精确匹配键。
 
-    步骤: 去题号/题型标签/分值前缀后缀, 统一异体字与全半角, 去空白,
-          词字符原样保留, 其余字符编码成 `~十六进制` —— 编码是单射的,
-          所以删标点导致的撞 key(3.5 vs 35、1+1 vs 11)不会再发生。
+    步骤: 去题号/题型标签/分值 -> 统一异体字与全半角 -> 中文标点规范化 -> 去空白;
+          词字符(字母/数字/汉字)原样保留; 句读标点丢弃; 括号/运算符等编码成 `~<十六进制>,`。
+
+    为什么 token 要带分隔符: 键里数字与 a-f 是**原样保留**的, 若 token 不以分隔符结束,
+    正则会把后面的内容字符一起吞掉(`~283~2e5~29` 会被读成 `~283`), 导致签名与宽松形式被破坏。
     """
     if text is None:
         return ""
@@ -196,49 +208,72 @@ def compact_text(text: Any) -> str:
         s = new
     s = s.translate(_RE_VARIANT)
     s = _WHITESPACE_RE.sub("", s)
-    chars = s.lower()
+    chars = [_CANONICALIZE.get(ch, ch) for ch in s.lower()]
     parts = []
+    length = len(chars)
     for index, ch in enumerate(chars):
         if _is_word_char(ch):
             parts.append(ch)
             continue
-        if ch in _DROP_CHARS:
-            continue                      # 纯格式噪音(引号/中文句读/空白): 丢弃
-        if ch in _AMBIGUOUS_PUNCT:
-            # 句读 vs 内容: 只有紧邻数字时才算内容("3.5"、"1,2"、"0，5" 不能与 "35"、"12"、"05" 混同)
-            prev_digit = index > 0 and chars[index - 1].isdigit()
-            next_digit = index + 1 < len(chars) and chars[index + 1].isdigit()
-            if prev_digit or next_digit:
-                parts.append(f"~{ord(ch):x}")
+        if ch in _DROP_CHARS or ch in _SENTENCE_PUNCT:
             continue
-        parts.append(f"~{ord(ch):x}")      # 括号/运算符等: 编码保留, 保证不同题目不会撞 key
+        if ch in _AMBIGUOUS_PUNCT:
+            prev_ch = chars[index - 1] if index > 0 else ""
+            next_ch = chars[index + 1] if index + 1 < length else ""
+            both_digits = prev_ch.isdigit() and next_ch.isdigit()
+            both_ascii_word = (prev_ch.isascii() and prev_ch.isalnum()
+                               and next_ch.isascii() and next_ch.isalnum())
+            if both_digits or both_ascii_word:
+                parts.append(f"~{ord(ch):x},")
+            continue
+        parts.append(f"~{ord(ch):x},")
     return "".join(parts)
+
+
+def _tokens(key: str) -> list[str]:
+    """取回精确键里的编码 token(带分隔符, 不会吞掉后面的内容字符)。"""
+    return re.findall(r"~([0-9a-f]{1,6}),", key)
+
+
+def _token_char(token: str) -> Optional[str]:
+    try:
+        code = int(token, 16)
+    except (TypeError, ValueError):
+        return None
+    if code < 0 or code > 0x10FFFF:
+        return None
+    return chr(code)
 
 
 def loose_key(key: str) -> str:
     """精确键 -> 只保留词字符的宽松形式(用于模糊匹配)。"""
-    return _strip_tokens(key)
-
-
-def _strip_tokens(key: str) -> str:
-    """去掉所有 `~hex` 编码 token, 只留词字符。"""
-    return re.sub(r"~[0-9a-f]+", "", key)
+    return re.sub(r"~[0-9a-f]{1,6},", "", key)
 
 
 def noise_signature(key: str) -> str:
-    """格式噪音字符的签名(按出现顺序), 用于区分"只有括号种类不同"的不同题目。"""
-    return "".join(
-        token for token in re.findall(r"~[0-9a-f]+", key)
-        if chr(int(token[1:], 16)) in _NOISE_CHARS
-    )
+    """格式噪音(括号类)签名: 用于区分"只有括号种类不同"的不同题目。"""
+    return "".join(f"~{token}," for token in _tokens(key) if _token_char(token) in _NOISE_CHARS)
 
 
 def significant_signature(key: str) -> str:
-    """承载语义的标点签名(. , + - * / = 等): 只要两边不同就判为不同题目。"""
-    return "".join(
-        token for token in re.findall(r"~[0-9a-f]+", key)
-        if chr(int(token[1:], 16)) in _SIGNIFICANT_CHARS
-    )
+    """承载语义的标点签名(运算符 + 紧邻数字的数值标点): 只要不同就判为不同题目。"""
+    return "".join(f"~{token}," for token in _tokens(key) if _token_char(token) not in _NOISE_CHARS)
+
+
+def _is_ascii_word(ch: str) -> bool:
+    return bool(ch) and ch.isascii() and ch.isalnum()
+
+
+def _containment_cuts_word(shorter: str, longer: str) -> bool:
+    """包含匹配是否切在 ASCII 字母数字串中间(那种匹配不可信:
+    'm 是什么单位' 是 'cm 是什么单位' 的子串, 但两道题答案不同)。"""
+    start = longer.find(shorter)
+    if start < 0:
+        return False
+    end = start + len(shorter)
+    cut_left = start > 0 and _is_ascii_word(longer[start - 1]) and _is_ascii_word(longer[start])
+    cut_right = end < len(longer) and _is_ascii_word(longer[end - 1]) and _is_ascii_word(longer[end])
+    return cut_left or cut_right
 
 
 def clean_title(text: Any) -> str:
@@ -761,19 +796,24 @@ class LocalBank:
             return self._pick_best(candidates)
 
     def _contain_score(self, key: str, other: str) -> Optional[float]:
-        """一方完整包含另一方时给分(只容忍多字/少字, 不容忍中间替换)。"""
+        """一方完整包含另一方时给分(只容忍多字/少字, 不容忍中间替换)。
+
+        额外规则: 不允许切在 ASCII 字母数字串中间, 否则 'm 是什么单位' 会命中 'cm 是什么单位'。
+        """
         if key == other:
             return 1.0
         if key in other:
-            shorter, longer = len(key), len(other)
+            shorter, longer = key, other
         elif other in key:
-            shorter, longer = len(other), len(key)
+            shorter, longer = other, key
         else:
             return None
-        rate = shorter / longer
+        if _containment_cuts_word(shorter, longer):
+            return None
+        rate = len(shorter) / len(longer)
         if rate < self.contain_rate:
             return None
-        return 0.9 + 0.1 * rate  # 0.9 ~ 1.0, 越接近完全一致分越高
+        return 0.9 + 0.1 * rate
 
     def _similarity_score(self, key: str, other: str, qtype: Optional[str]) -> Optional[float]:
         """difflib 相似度(默认关闭): 需要用户显式接受"仅差几个字"的误配风险。"""
