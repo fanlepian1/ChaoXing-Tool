@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import tempfile
 import threading
 import time
 from difflib import SequenceMatcher
@@ -122,9 +123,9 @@ _RE_LEADING_NUMBER = re.compile(
     r"|\d{1,4}\s*[、.．,，:：]"          # 1、 / 12. / 3：
     r"|\d{1,4}\s*[)）\]]"                # 1) / 2） / 3]
     r"|第\s*\d{1,4}\s*题"                # 第3题
-    # 小节编号 3.5 / 3.5.1: 后面跟空格或中文才算编号; 后面直接接字母数字的 "3.5GHz" 是内容
-    r"|\d{1,2}(?:[.．]\d{1,3})+(?=\s|[^\x00-\x7F])"
-    r")\s*(?![0-9])"
+    r")\s*(?![0-9])"                     # "3.5GHz" 这种小数不算题号
+    # 注意: 刻意**不**处理 "3.5 题干" 这种小节编号 —— 它和 "3.5 英寸是几厘米"
+    # 这类"内容是小数"的题干无法区分, 处理了就必然错答, 宁可漏配(交给包含式模糊兜底)。
 )
 # 题型标签: 只有括号里是**题型词**或**短编号**时才当标签剥掉。
 # 否则 "[0,1]区间上的函数" / "【0,1】区间上的函数有界" / "【2024】大事记" 这种题面会被削成同一个 key,
@@ -153,6 +154,7 @@ _BRACKET_SENTINEL = str.maketrans({
     "《": "n", "》": "m",
     "{": "e", "}": "f",
 })
+_SENTINEL_CHARS = frozenset("qpb dzxnmef".replace(" ", ""))
 _RE_DROP = re.compile(r"[\s，。！？；：、,.!?;:'\"“”‘’`~!@#$%^&*\-_+=|\\/<>…·]")
 # 全角 ASCII -> 半角
 _FULLWIDTH = str.maketrans({chr(0xFF01 + i): chr(0x21 + i) for i in range(0x5E)})
@@ -363,14 +365,27 @@ def looks_like_json(text: str) -> bool:
 
 
 def looks_like_json_fragment(question: Any) -> bool:
-    """判断一条"题目"其实是不是被截断的 JSON 碎片(那种条目绝不能进题库)。"""
+    """判断一条"题目"其实是不是被截断的 JSON 碎片(那种条目绝不能进题库)。
+
+    判定要窄: 只挡"以 { 或 [ 开头 + 带 JSON 冒号/逗号特征"的碎片,
+    否则会把合法题目误杀, 例如:
+        `["一带一路"]指的是什么倡议`、`字典 {"a": 1} 在 Python 里叫什么`、
+        `JSON 里 "key": "value" 的写法对吗`
+    """
     text = str(question or "").strip()
     if not text:
         return True
-    if re.match(r'^[{\[]\s*["\']', text):
+    if text[0] not in "{[":            # 不以 {/[ 开头的一律是正常题目
+        return False
+    head = text[:80]
+    if '":' in head or "':" in head:                       # JSON 键值对特征 {"题干": "答案"
         return True
-    # 形如 {"题干": "答案"  这种被逗号切成两半的碎片
-    return ('":' in text[:80]) or ("':" in text[:80])
+    if ":" in text[:20] or "：" in text[:20]:              # 无引号的 {题目一: A 特征
+        return True
+    # 数组/对象开头 + 引号 + 分隔逗号: ["题干", "答案" 这种碎片
+    if re.match(r'^\s*[\[{]\s*["\']', text) and ("," in head or "，" in head):
+        return True
+    return False
 
 
 def load_bank_file_with_stats(path: str | Path) -> tuple[list[dict], dict]:
@@ -388,9 +403,34 @@ def load_bank_file_with_stats(path: str | Path) -> tuple[list[dict], dict]:
         return [], stats
     raw = _read_text(p)
     if not raw.strip():
+        # 0 字节/纯空白: 很可能是"写到一半被打断"的残留。当成可疑文件, 拒绝覆盖它(见 failed_paths)。
+        try:
+            if p.stat().st_size == 0:
+                stats["empty_file"] = True
+        except OSError:
+            pass
         return [], stats
 
     is_json_name = p.suffix.lower() in JSON_SUFFIXES
+    if p.suffix.lower() == ".jsonl":
+        # 行分隔 JSON: 每行一个对象/数组, 坏行跳过(其余仍然可用)
+        entries_jsonl: list[dict] = []
+        bad_lines = 0
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                bad_lines += 1
+                continue
+            entries_jsonl.extend(collect_entries(item, source=p.name, stats=stats))
+        if bad_lines:
+            stats["skipped_lines"] = stats.get("skipped_lines", 0) + bad_lines
+        if not entries_jsonl and bad_lines:
+            stats["bad_json"] = True
+        return entries_jsonl, stats
     if is_json_name or looks_like_json(raw):
         try:
             payload = json.loads(raw)
@@ -476,6 +516,22 @@ def parse_text_entries(text: str) -> tuple[list[dict], int]:
 
 
 
+
+def bracket_signature(key: str) -> str:
+    """取出归一化串里的"括号种类签名"(只保留占位字符)。
+
+    用于判断两道题是不是"只有括号种类不同": (0,1) 与 [0,1] 是不同题目, 不能互相命中;
+    而《红楼梦》与红楼梦 是一边带括号的同一题, 应该允许模糊命中。
+    """
+    return "".join(ch for ch in key if ch in _SENTINEL_CHARS)
+
+
+def loose_key(key: str) -> str:
+    """去掉括号占位字符的形式, 只用于模糊匹配。"""
+    return "".join(ch for ch in key if ch not in _SENTINEL_CHARS)
+
+
+
 def _path_key(path: Any) -> str:
     """路径归一化(解析为绝对路径 + 统一大小写)用于比较, 避免换个写法就绕过写保护。"""
     try:
@@ -488,10 +544,11 @@ def _path_key(path: Any) -> str:
 def parse_bank_text(raw: str) -> tuple[list[dict], int]:
     """按纯文本题库格式解析, 并过滤掉"其实是被截断的 JSON 碎片"的伪条目。
 
-    返回 (可用条目, 被跳过的原始行数)。工具脚本与运行期加载共用同一套判定, 避免两边行为不一致。
+    返回 (可用条目, 被跳过的行数)。被过滤掉的伪条目也会计入跳过数, 避免"悄悄少了几道题"。
     """
     entries, skipped = parse_text_entries(raw)
     credible = [item for item in entries if not looks_like_json_fragment(item.get("question"))]
+    skipped += len(entries) - len(credible)
     return credible, skipped
 
 
@@ -572,6 +629,9 @@ class LocalBank:
                 if stats.get("bad_json"):
                     issues.append(f"{path}: 是 JSON 但解析失败(文件可能被截断或损坏), 已跳过该文件")
                     failed_paths.add(_path_key(path))
+                if stats.get("empty_file"):
+                    issues.append(f"{path}: 是 0 字节空文件(可能上次写入被中断), 已跳过并拒绝覆盖该文件")
+                    failed_paths.add(_path_key(path))
                 if stats.get("skipped_empty"):
                     issues.append(f"{path}: 有 {stats['skipped_empty']} 条题目答案为空, 已跳过(建议在题库里补齐或删掉)")
                 if file_entries:
@@ -626,14 +686,25 @@ class LocalBank:
                 # 过短的题目只允许精确命中: 一字之差就可能是完全不同的题
                 return None
 
+            query_loose = loose_key(key)
+            query_sig = bracket_signature(key)
+            if len(query_loose) < self.min_length:
+                return None
             candidates: list[tuple[float, dict]] = []
             for entry in self._entries:
                 other = entry["key"]
-                if not other or len(other) < self.min_length:
+                if not other:
                     continue
-                score = self._contain_score(key, other)
+                other_loose = loose_key(other)
+                if len(other_loose) < self.min_length:
+                    continue
+                # 两边都带括号但括号种类不同 -> 是"只有括号不同"的不同题目, 不匹配
+                other_sig = bracket_signature(other)
+                if query_sig and other_sig and query_sig != other_sig:
+                    continue
+                score = self._contain_score(query_loose, other_loose)
                 if score is None and self.similarity:
-                    score = self._similarity_score(key, other, qtype)
+                    score = self._similarity_score(query_loose, other_loose, qtype)
                 if score is not None:
                     candidates.append((score, entry))
             return self._pick_best(candidates)
@@ -824,6 +895,24 @@ class LocalBank:
             return 0
         return written
 
+    def stamp_auto_answers(self, source_prefix: str = "cache:") -> int:
+        """给"来源是缓存但没记 auto_answer"的旧格式条目补上 auto_answer。
+
+        这批条目是旧版本自动回写进来的, 补上之后它们就能重新被自动纠正(否则永远按人工条目保护)。
+        返回补了多少条。
+        """
+        stamped = 0
+        prefix = str(source_prefix or "").strip().lower()
+        with self._lock:
+            for entry in self._entries:
+                if entry.get("auto_answer"):
+                    continue
+                source = str(entry.get("source") or "").strip().lower()
+                if prefix and source.startswith(prefix):
+                    entry["auto_answer"] = entry["answer"]
+                    stamped += 1
+        return stamped
+
     def save(self, path: Any = None, indent: int = 2, allow_failed_overwrite: bool = False) -> Optional[str]:
         """保存题库到文件(默认第一个路径), 返回写入的文件路径; 因保护而拒绝写入时返回 None。
 
@@ -841,7 +930,7 @@ class LocalBank:
             if _path_key(target) in self.failed_paths and not allow_failed_overwrite:
                 self.last_refusal = f"{target}: 该文件加载时解析失败, 为避免覆盖已跳过写回"
                 return None
-            if target.exists() and target.suffix.lower() not in JSON_SUFFIXES and not allow_failed_overwrite:
+            if target.suffix.lower() not in JSON_SUFFIXES and not allow_failed_overwrite:
                 self.last_refusal = (f"{target}: 非 JSON 题库文件(题库写出格式固定为 JSON), "
                                      f"为避免改变你的文件格式已跳过写回; "
                                      f"可先用 tiku_tool.py import 转成 .json 再作为 local_bank")
@@ -866,11 +955,24 @@ class LocalBank:
                     data[entry["question"]] = entry["answer"]
             try:
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(
-                    json.dumps(data, ensure_ascii=False, indent=indent) + "\n",
-                    encoding="utf-8",
-                )
-            except OSError:
+                # 原子写(临时文件 + os.replace): 避免并发读者看到"写了一半/0 字节"的题库
+                fd, tmp_path = tempfile.mkstemp(prefix=target.name + ".", dir=str(target.parent))
+                try:
+                    with os.fdopen(fd, "w", encoding="utf-8") as fp:
+                        fp.write(json.dumps(data, ensure_ascii=False, indent=indent) + "\n")
+                        fp.flush()
+                        os.fsync(fp.fileno())
+                    os.replace(tmp_path, str(target))
+                except OSError as e:
+                    self.last_refusal = f"{target}: 写入失败({e})"
+                    try:
+                        if os.path.exists(tmp_path):
+                            os.remove(tmp_path)
+                    except OSError:
+                        pass
+                    return None
+            except OSError as e:
+                self.last_refusal = f"{target}: 写入失败({e})"
                 return None
         return str(target)
 

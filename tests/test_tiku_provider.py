@@ -151,23 +151,20 @@ class TestTikuLocalQuery(TikuTestCase):
         tiku = build_tiku(self.base_conf())
         q_info = {"title": "1、以下哪个是网络层协议？（2.0分）", "type": "single", "options": "A. IP\nB. TCP"}
         self.assertEqual(tiku.query(q_info), "IP")  # 字母 A 会被展开成该选项的文本
-        cached = json.loads(self.cache_path.read_text(encoding="utf-8"))
-        # Tiku.query 会先剥掉题号与分值, 缓存键里不应该再出现这些噪音
-        keys = [k for k in cached if "以下哪个是网络层协议" in k]
-        self.assertEqual(len(keys), 1, f"缓存键不符合预期: {list(cached)}")
-        # 题号与分值被剥掉, 但标点原样保留(对外部题库更友好)
-        self.assertEqual(keys[0], "以下哪个是网络层协议？")
-        self.assertEqual(cached[keys[0]], "IP")
+        # 本地题库命中不会再写缓存(缓存只记录"外部题库搜到过什么"), 所以这里应该是空的
+        self.assertEqual(json.loads(self.cache_path.read_text(encoding="utf-8")), {})
 
     def test_cache_short_circuits_provider(self):
         self.write_bank({"题目X": "A"})
         tiku = build_tiku(self.base_conf())
         q = {"title": "题目X", "type": "single", "options": "A. 甲\nB. 乙"}
         self.assertEqual(tiku.query(q), "甲")
-        # 把题库文件清空, 第二次仍然应该从缓存命中
+        # 题库里没有的题: 用缓存短路(不发任何请求)
         self.bank_path.write_text("{}", encoding="utf-8")
         tiku.bank.load()
-        self.assertEqual(tiku.query(q), "甲")
+        self.cache_path.write_text(json.dumps({"题目Y": "乙"}, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(tiku.query({"title": "题目Y", "type": "single",
+                                     "options": "A. 甲\nB. 乙"}), "乙")
 
     def test_miss_returns_none(self):
         self.write_bank({"题目X": "A"})
@@ -313,9 +310,9 @@ class TestLocalBankPriority(TikuTestCase):
         tiku = build_tiku(self.base_conf())
         answer = tiku.query({"title": "题目X", "type": "single", "options": "A. 甲\nB. 乙"})
         self.assertEqual(answer, "乙")
-        # 缓存里的旧答案会被顺手纠正
+        # 题库优先返回, 但不改写缓存: 缓存里那份别的来源的答案要保留
         cached = json.loads(self.cache_path.read_text(encoding="utf-8"))
-        self.assertEqual(cached["题目X"], "乙")
+        self.assertEqual(cached["题目X"], "甲")
 
     def test_cache_still_used_when_bank_misses(self):
         self.write_bank({"别的题目": "甲"})
@@ -385,10 +382,9 @@ class TestAnswerNormalization(TikuTestCase):
         tiku = build_tiku(self.base_conf())
         answer = tiku.query({"title": "多选题干", "type": "multiple",
                              "options": "A. 封装\nB. 继承\nC. 多态"})
-        self.assertEqual(answer, "封装\n继承")
-        # 缓存里存的也应该是展开后的答案, 下一轮直接可用
-        cached = json.loads(self.cache_path.read_text(encoding="utf-8"))
-        self.assertEqual(cached["多选题干"], "封装\n继承")
+        self.assertEqual(answer, "封装\n继承")  # 字母 AB 会展开成选项文本
+        # 本地题库命中不写缓存(见 TestLocalBankPriority), 缓存保持为空
+        self.assertEqual(json.loads(self.cache_path.read_text(encoding="utf-8")), {})
 
     def test_single_choice_letter_is_expanded_to_option_text(self):
         self.write_bank({"单选题干": "B"})

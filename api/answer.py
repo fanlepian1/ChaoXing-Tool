@@ -268,8 +268,8 @@ class Tiku:
             local_answer = local_answer.strip()
             if not q_type or check_answer(local_answer, q_type, self):
                 logger.info(f"从{self.name}(本地)获取答案：{q_info['title']} -> {local_answer}")
-                if cache_dao.get_cache(q_info['title']) != local_answer:
-                    cache_dao.add_cache(q_info['title'], local_answer)
+                # 刻意不改写缓存: 缓存是"外部题库搜到的答案"的独立记录, 覆盖它会毁掉
+                # 唯一一份别的来源的答案(题库条目被删掉后就再也找不回来了)
                 return local_answer
             logger.info(f"本地题库答案与题目类型不符，已忽略：{local_answer}")
         answer = cache_dao.get_cache(q_info['title'])

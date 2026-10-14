@@ -223,6 +223,46 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(text_bank.read_text(encoding="utf-8"), "题目甲----A\n")
 
+
+    def test_output_target_is_protected(self):
+        """回归: --output 指向已存在的题库时默认拒绝, --force 才覆盖。"""
+        curated = self.tmpdir / "curated.json"
+        curated.write_text(json.dumps({"人工题一": "A", "人工题二": "B"}, ensure_ascii=False),
+                           encoding="utf-8")
+        src = self.tmpdir / "new.json"
+        src.write_text(json.dumps({"新题": "C"}, ensure_ascii=False), encoding="utf-8")
+        code = tiku_tool.main(["import", "--bank", str(self.tmpdir / "missing.json"), "--input", str(src),
+                               "--output", str(curated)])
+        self.assertEqual(code, 1)
+        self.assertEqual(len(json.loads(curated.read_text(encoding="utf-8"))), 2)  # 没被动过
+        code = tiku_tool.main(["import", "--bank", str(self.tmpdir / "missing.json"), "--input", str(src),
+                               "--output", str(curated), "--force"])
+        self.assertEqual(code, 0)
+
+    def test_sync_cache_refusal_is_reported(self):
+        """回归: 缓存写不进去时 --sync-cache 必须报错退出, 不能报"更新 0 条"就完事。"""
+        src = self.tmpdir / "src.json"
+        src.write_text(json.dumps({"题目": "A"}, ensure_ascii=False), encoding="utf-8")
+        bad_cache = self.tmpdir / "cache.txt"
+        bad_cache.write_text("我的笔记", encoding="utf-8")
+        code = tiku_tool.main(["import", "--bank", str(self.bank), "--input", str(src),
+                               "--sync-cache", "--cache", str(bad_cache)])
+        self.assertEqual(code, 1)
+
+    def test_jsonl_input(self):
+        src = self.tmpdir / "bank.jsonl"
+        src.write_text('{"题目一": "A"}\n{"question": "题目二", "answer": "B"}\n', encoding="utf-8")
+        self.assertEqual(tiku_tool.main(["import", "--bank", str(self.bank), "--input", str(src)]), 0)
+        data = json.loads(self.bank.read_text(encoding="utf-8"))
+        self.assertEqual(len(data), 2)
+
+    def test_migrate_command(self):
+        self.bank.write_text(json.dumps({"题目A": {"answer": "A", "source": "cache:cache.json"}},
+                                       ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(tiku_tool.main(["migrate", "--bank", str(self.bank)]), 0)
+        data = json.loads(self.bank.read_text(encoding="utf-8"))
+        self.assertEqual(data["题目A"]["auto_answer"], "A")
+
     def test_bank_flag_after_subcommand(self):
         # 文档里写的是 `stats --bank xxx`, 解析器必须支持这个顺序
         self.assertEqual(tiku_tool.main(["stats", "--bank", str(self.bank)]), 0)

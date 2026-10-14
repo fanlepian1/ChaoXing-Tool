@@ -86,10 +86,10 @@ class TestWorkflowConfigPath(unittest.TestCase):
                              "options": "A. IP\nB. TCP"})
         self.assertEqual(answer, "IP")  # 题库里的字母 A 会按当前选项展开成选项文本
 
+        # 本地题库命中不会写缓存(缓存只积累外部题库搜到的答案),
+        # workflow 里的回写步骤对"缓存文件不存在"是有保护的
         cache_file = self.tmpdir / "tiku" / "cache.json"
-        self.assertTrue(cache_file.is_file(), "答案应该写进 tiku/cache.json")
-        cached = json.loads(cache_file.read_text(encoding="utf-8"))
-        self.assertEqual(list(cached.values()), ["IP"])
+        self.assertEqual(json.loads(cache_file.read_text(encoding="utf-8")), {})
 
     def test_auto_chain_includes_configured_providers(self):
         self._write_bank()
