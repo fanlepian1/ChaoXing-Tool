@@ -314,15 +314,18 @@ def cmd_migrate(args) -> int:
     before = bank.load()
     for issue in bank.issues:
         print(f"[tiku_tool] 提示: {issue}", file=sys.stderr)
+    if args.dry_run:
+        # dry-run 绝不能写盘: 缓存会被跑课进程优先读取, 改了就等于改了运行结果
+        would_sync = bank.export_to_cache(args.cache, write=False)
+        stamped = bank.stamp_auto_answers()
+        print(f"[tiku_tool] dry-run: 会同步 {would_sync} 条到缓存, 会给 {stamped} 条缓存来源的条目补 "
+              f"auto_answer(未写盘)")
+        return 0
     synced = bank.export_to_cache(args.cache)
     if bank.last_refusal:
         print(f"[tiku_tool] 缓存同步失败, 已停止: {bank.last_refusal}", file=sys.stderr)
         return 1
     stamped = bank.stamp_auto_answers()
-    if args.dry_run:
-        print(f"[tiku_tool] dry-run: 可同步 {synced} 条到缓存, 给 {stamped} 条缓存来源的条目补 "
-              f"auto_answer(未写盘)")
-        return 0
     output = bank.save(args.output or args.bank)
     if output is None:
         print(f"[tiku_tool] 已跳过写回: {bank.last_refusal or args.bank}", file=sys.stderr)

@@ -688,6 +688,54 @@ class TestRound6Normalization(unittest.TestCase):
         self.assertEqual(bank.lookup("m 是什么单位"), "米")
 
 
+
+class TestRound7Guards(unittest.TestCase):
+    """第七轮验证报出的问题: `!=` 与 `=` 合并、否定词切口、元信息键大小写、波浪号。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.tmpdir = Path(self.tmp.name)
+
+    def _bank(self, data):
+        path = self.tmpdir / "r7.json"
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        bank = LocalBank(paths=[str(path)], fuzzy=True, contain_rate=0.75, min_length=5, reload_interval=0)
+        bank.load()
+        return bank
+
+    def test_not_equal_operator_is_not_sentence_punctuation(self):
+        """回归(blocker): !== 与 = 合并过 -> 错答案 + 静默丢题。"""
+        self.assertNotEqual(compact_text("表达式5!=3的值是"), compact_text("表达式5=3的值是"))
+        self.assertNotEqual(compact_text("1?2"), compact_text("12"))
+        # 题末问号仍然算句读(不影响题目身份)
+        self.assertEqual(compact_text("What is 2+2?"), compact_text("What is 2+2"))
+        bank = self._bank({"表达式5!=3的值是": "1", "表达式5=3的值是": "2"})
+        self.assertEqual(bank.load(), 2)
+        self.assertEqual(bank.lookup("表达式5!=3的值是"), "1")
+        self.assertEqual(bank.lookup("表达式5=3的值是"), "2")
+
+    def test_negation_at_containment_edge_is_rejected(self):
+        """回归(high): 中文切口没有词边界, '不属于…' 不能把 '属于…' 的答案偷过来。"""
+        bank = self._bank({"属于面向对象语言的是": "Java"})
+        self.assertIsNone(bank.lookup("不属于面向对象语言的是"))
+        self.assertEqual(bank.lookup("属于面向对象语言的是"), "Java")
+
+    def test_legit_containment_still_matches(self):
+        bank = self._bank({"以下哪个是网络层协议 请选择": "A", "《红楼梦》的作者是谁": "曹雪芹"})
+        self.assertEqual(bank.lookup("以下哪个是网络层协议"), "A")
+        self.assertEqual(bank.lookup("红楼梦的作者是谁"), "曹雪芹")
+
+    def test_metadata_keys_are_case_insensitive(self):
+        entries = collect_entries({"isCorrect": True, "answerText": "A", "bestAnswer": "B",
+                                   "QUESTION": "真题干", "Answer": "C"})
+        self.assertEqual(len(entries), 1, entries)
+        self.assertEqual(entries[0]["answer"], "C")
+
+    def test_wave_dash_is_a_range_dash(self):
+        self.assertEqual(compact_text("范围3～5"), compact_text("范围3-5"))
+
+
 class TestHelpers(unittest.TestCase):
     def test_split_paths(self):
         self.assertEqual(split_paths("a.json,b.json"), ["a.json", "b.json"])

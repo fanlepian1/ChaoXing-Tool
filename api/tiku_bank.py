@@ -110,7 +110,8 @@ _ANSWER_KEYS = ("answer", "答案", "bestAnswer", "answerText", "correct", "corr
 _QUESTION_KEYS = ("question", "title", "题干", "题目", "questionTitle", "stem", "queston")
 _TYPE_KEYS = ("type", "questionType", "题型", "qtype")
 # 这些键自身是元信息, 不能当成"题目文本"来收录
-_META_KEYS = set(_ANSWER_KEYS) | set(_TYPE_KEYS) | {"plat", "code", "msg", "message", "times", "source"}
+_META_KEYS = {str(key).strip().lower() for key in
+              set(_ANSWER_KEYS) | set(_TYPE_KEYS) | {"plat", "code", "msg", "message", "times", "source"}}
 
 # 题干首部的题号 / 题型标签 / 分值后缀, 这些与题目本身无关, 归一化时去掉。
 #
@@ -156,6 +157,9 @@ _CANONICALIZE = {
     "\u2014": "-", "\u2013": "-", "\u2212": "-", "\u2010": "-", "\u2011": "-",
     "\u3010": "[", "\u3011": "]", "\u3014": "[", "\u3015": "]",
 }
+# 波浪号在中文里是范围号(3～5), 统一成连字符; 必须在 _FULLWIDTH 之前处理,
+# 否则它会被转成 ASCII 的 `~`(承载语义的字符), 导致 a～b 与 ab 不再匹配
+_PRE_CANONICALIZE = str.maketrans({"\uff5e": "-", "\u301c": "-"})
 # 纯格式噪音: 精确匹配时直接丢弃
 _DROP_CHARS = frozenset(
     " \t\r\n\u3000"
@@ -171,6 +175,8 @@ _SIGNIFICANT_CHARS = frozenset("+-*/=%&|^_~@#$<>")
 # 句读/数值共用的一批标点: ?/! 永远算句读; . , : ; 只在"两侧都是数字"或
 # "两侧都是 ASCII 字母数字"时算内容(3.5 / 1,2 / 点(x,y)), 否则算句读丢弃
 _SENTENCE_PUNCT = frozenset("?!")
+# 运算符: 与 ?/! 相邻时说明它们在运算符里(如 !=、<=), 不能当句读丢掉
+_OPERATOR_CHARS = frozenset("=<>+-*/%")
 _AMBIGUOUS_PUNCT = frozenset(".,:;")
 
 # 纯文本题库的行分隔符(按优先级)与题型别名
@@ -199,7 +205,7 @@ def compact_text(text: Any) -> str:
     """
     if text is None:
         return ""
-    s = str(text).translate(_FULLWIDTH).strip()
+    s = str(text).translate(_PRE_CANONICALIZE).translate(_FULLWIDTH).strip()
     for _ in range(3):
         new = _RE_TAG.sub("", s)
         new = _RE_LEADING_NUMBER.sub("", new)
@@ -217,7 +223,16 @@ def compact_text(text: Any) -> str:
         if _is_word_char(ch):
             parts.append(ch)
             continue
-        if ch in _DROP_CHARS or ch in _SENTENCE_PUNCT:
+        if ch in _DROP_CHARS:
+            continue
+        if ch in _SENTENCE_PUNCT:
+            # 问号/叹号平时是句读(题末问号不影响题目身份), 但 `!=`、`<=` 这种运算符,
+            # 以及 `1?2` 这种夹在数字之间的, 都算内容 —— 否则 5!=3 会与 5=3 合并
+            prev_ch = chars[index - 1] if index > 0 else ""
+            next_ch = chars[index + 1] if index + 1 < length else ""
+            operator_neighbour = prev_ch in _OPERATOR_CHARS or next_ch in _OPERATOR_CHARS
+            if operator_neighbour or (prev_ch.isdigit() and next_ch.isdigit()):
+                parts.append(f"~{ord(ch):x},")
             continue
         if ch in _QUOTE_CHARS:
             prev_ch = chars[index - 1] if index > 0 else ""
@@ -270,6 +285,22 @@ def significant_signature(key: str) -> str:
 
 def _is_ascii_word(ch: str) -> bool:
     return bool(ch) and ch.isascii() and ch.isalnum()
+
+
+_NEGATION_CHARS = frozenset("不非无未没别勿")
+
+
+def _containment_changes_polarity(shorter: str, longer: str) -> bool:
+    """包含匹配多出来的那段是否含否定词。
+
+    '不属于面向对象语言的是' 完整包含了 '属于面向对象语言的是', 但两者答案正好相反 ——
+    中文切口没有"词边界"可以判, 所以用否定词做护栏。
+    """
+    start = longer.find(shorter)
+    if start < 0:
+        return False
+    extra = longer[:start] + longer[start + len(shorter):]
+    return any(ch in _NEGATION_CHARS for ch in extra)
 
 
 def _containment_cuts_word(shorter: str, longer: str) -> bool:
@@ -339,9 +370,12 @@ def answer_to_text(answer: Any) -> Optional[str]:
 
 
 def _pick(mapping: dict, keys: Iterable[str]) -> Any:
+    """按 keys 的顺序取值(忽略大小写): 题库导出里 `QUESTION`/`Answer`/`isCorrect` 这类混写很常见。"""
+    lowered = {str(item).strip().lower(): value for item, value in mapping.items()}
     for key in keys:
-        if key in mapping:
-            return mapping[key]
+        found = lowered.get(str(key).strip().lower())
+        if found is not None:
+            return found
     return None
 
 
@@ -818,6 +852,8 @@ class LocalBank:
             return None
         if _containment_cuts_word(shorter, longer):
             return None
+        if _containment_changes_polarity(shorter, longer):
+            return None
         rate = len(shorter) / len(longer)
         if rate < self.contain_rate:
             return None
@@ -952,7 +988,8 @@ class LocalBank:
             return empty
         return self.merge(payload, source=source or f"cache:{path.name}", overwrite=overwrite)
 
-    def export_to_cache(self, cache_path: Any = DEFAULT_CACHE_PATH, overwrite: bool = True) -> int:
+    def export_to_cache(self, cache_path: Any = DEFAULT_CACHE_PATH, overwrite: bool = True,
+                        write: bool = True) -> int:
         """把题库里的答案写进答案缓存(题库优先)。
 
         为什么需要: Tiku.query 是先查缓存的, 所以你手动改了题库里的答案后, 旧缓存还会被优先使用。
@@ -987,6 +1024,8 @@ class LocalBank:
                 if payload.get(title) != entry["answer"]:
                     written += 1
                 payload[title] = entry["answer"]
+        if not write:
+            return written
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             fd, tmp_path = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))

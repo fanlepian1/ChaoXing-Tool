@@ -263,6 +263,12 @@ class TestCommands(unittest.TestCase):
                                        ensure_ascii=False), encoding="utf-8")
         # 不显式给 --cache 时不能猜缓存位置(否则会同步到你没在用的缓存)
         self.assertEqual(tiku_tool.main(["migrate", "--bank", str(self.bank)]), 1)
+        # dry-run 不能写盘(缓存会被跑课进程优先读取, 改了就等于改了运行结果)
+        self.cache.write_text(json.dumps({"题目A": "OLD"}, ensure_ascii=False), encoding="utf-8")
+        before = self.cache.read_text(encoding="utf-8")
+        self.assertEqual(tiku_tool.main(["migrate", "--bank", str(self.bank),
+                                         "--sync-cache-to", str(self.cache), "--dry-run"]), 0)
+        self.assertEqual(self.cache.read_text(encoding="utf-8"), before)
         code = tiku_tool.main(["migrate", "--bank", str(self.bank),
                                 "--sync-cache-to", str(self.cache)])
         self.assertEqual(code, 0)

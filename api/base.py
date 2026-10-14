@@ -136,24 +136,35 @@ class ActivityType(IntEnum):
 # ---------------------------------------------------------------------------
 
 _VARIANT_CHAR_MAP = str.maketrans({'⻛': '风', '⻔': '门', '⻋': '车', '⻢': '马'})
+# 全角 ASCII -> 半角: 题库/卷面里的 Ａ．/Ｂ． 选项字母必须能识别,
+# 否则选项切分失败, 多选/单选会退化成随机作答
+_FULLWIDTH_MAP = str.maketrans({chr(0xFF01 + i): chr(0x21 + i) for i in range(0x5E)})
 _RE_OPTION_PREFIX = re.compile(r'^[A-Za-z]\s*[.、:：)?）]?\s*')
 _RE_DROP_FOR_MATCH = re.compile(r'[，。！？；：,.!?;:()（）\[\]【】"“”‘’\-_/\\|]')
 
 
 def normalize_text(text) -> str:
-    """归一化题面/选项文本用于比较: 去选项字母前缀、去空白与标点、统一异体字、转小写。"""
+    """归一化题面/选项文本用于比较: 去选项字母前缀、去空白与标点、统一异体字与全半角、转小写。"""
     if not isinstance(text, str):
         text = str(text)
-    normalized = text.translate(_VARIANT_CHAR_MAP)
+    normalized = normalize_fullwidth(text)
+    normalized = normalized.translate(_VARIANT_CHAR_MAP)
     normalized = _RE_OPTION_PREFIX.sub('', normalized)
     normalized = re.sub(r'\s+', '', normalized)
     normalized = _RE_DROP_FOR_MATCH.sub('', normalized)
     return normalized.lower()
 
 
+def normalize_fullwidth(text) -> str:
+    """全角 ASCII(尤其是 Ａ．/Ｂ． 选项字母与全角括号)转半角。"""
+    if not isinstance(text, str):
+        text = str(text)
+    return text.translate(_FULLWIDTH_MAP)
+
+
 def get_option_text(option: str) -> str:
-    """去掉选项行的字母前缀, 返回选项正文。"""
-    return _RE_OPTION_PREFIX.sub('', option).strip()
+    """去掉选项行的字母前缀, 返回选项正文(兼容全角字母)。"""
+    return _RE_OPTION_PREFIX.sub('', normalize_fullwidth(option)).strip()
 
 
 def is_subsequence(a, o) -> bool:
@@ -954,8 +965,8 @@ class Chaoxing:
                 # 根据响应结果选择答案
                 if q["type"] == "multiple":
                     # 多选处理
-                    options_list = multi_cut(q["options"])
-                    res_list = multi_cut(res)
+                    options_list = multi_cut(normalize_fullwidth(q["options"]))
+                    res_list = multi_cut(normalize_fullwidth(res))
                     if res_list is not None and options_list is not None:
                         for _a in clean_res(res_list):
                             matched = False
@@ -979,9 +990,9 @@ class Chaoxing:
                     # else 如果分割失败那么就直接到下面去随机选
                 elif q["type"] == "single":
                     # 单选也进行切割，主要是防止返回的答案有异常字符
-                    options_list = multi_cut(q["options"])
+                    options_list = multi_cut(normalize_fullwidth(q["options"]))
                     if options_list is not None:
-                        t_res = clean_res(res)
+                        t_res = clean_res(normalize_fullwidth(res))
                         if t_res:
                             answer = exact_option_letter(t_res[0], options_list)
                         for o in ([] if answer else options_list):
