@@ -81,6 +81,8 @@ def load_input(path: Path, fmt: str = "auto") -> tuple[list[dict] | dict | list,
                 bad += 1
         if bad:
             print(f"[tiku_tool] {path}: 跳过 {bad} 行无法解析的 JSON", file=sys.stderr)
+        if bad and not entries_jsonl:
+            raise InputParseError(f"{path} 的每一行都不是合法 JSON, 不是行分隔 JSON 题库")
         return entries_jsonl, bad
     use_json = fmt == "json" or (fmt == "auto" and (is_json_name or looks_like_json(raw)))
     if fmt == "text":
