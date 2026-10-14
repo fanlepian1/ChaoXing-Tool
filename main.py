@@ -503,7 +503,8 @@ def init_chaoxing(common_config, tiku_config):
 def export_tiku_bank(tiku_config) -> None:
     """把本次运行积累的答案缓存合并回本地题库文件(提交回仓库后, 题库会越跑越全)。
 
-    只补新题, 不覆盖题库里已有的答案 —— 那可能是你人工核对过的。
+    只补新题 + 更新之前由缓存自动写进去的条目, 不覆盖人工核对过/导入的答案;
+    题库文件本身解析失败时拒绝写回, 避免把用户原文件覆盖掉。
     """
     if not str_to_bool(tiku_config.get('export_bank', 'false')):
         return
@@ -516,8 +517,12 @@ def export_tiku_bank(tiku_config) -> None:
         cache_file = tiku_config.get('cache_file') or CacheDAO.DEFAULT_CACHE_FILE
         result = bank.import_cache(cache_file)
         output = bank.save()
+        if output is None:
+            logger.error(f"题库文件解析失败, 为避免覆盖原文件已跳过写回: {', '.join(bank_paths)}")
+            return
         logger.info(f"题库回写完成: 原 {before} 条, 新增 {result['added']} 条, "
-                    f"跳过 {result['skipped']} 条(题库已有答案), 现共 {len(bank)} 条 -> {output}")
+                    f"更新 {result['overwritten']} 条, 跳过 {result['skipped']} 条(保留题库里的答案), "
+                    f"现共 {len(bank)} 条 -> {output}")
     except Exception as e:
         logger.error(f"题库回写失败: {e}")
 

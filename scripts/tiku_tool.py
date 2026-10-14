@@ -45,28 +45,37 @@ if str(REPO_ROOT) not in sys.path:
 from api.tiku_bank import (  # noqa: E402
     DEFAULT_BANK_PATH,
     DEFAULT_CACHE_PATH,
+    JSON_SUFFIXES,
     LocalBank,
+    TEXT_TYPE_ALIASES,
     compact_text,
+    looks_like_json,
     merge_bank_files,
     parse_text_entries,
-    TEXT_TYPE_ALIASES,
 )
 
 
 def load_input(path: Path, fmt: str = "auto") -> tuple[list[dict] | dict | list, int]:
-    """读取一个输入题库文件, 返回 (payload, 跳过行数)。"""
+    """读取一个输入题库文件, 返回 (payload, 跳过行数)。
+
+    `.json`/`.jsonl` 后缀或内容像 JSON 的文件: JSON 解析失败就报错返回空(绝不退化成文本解析,
+    否则会把截断 JSON 片段当题目/答案导入); 其余按纯文本解析。
+    """
     if not path.is_file():
         print(f"[tiku_tool] 跳过不存在的文件: {path}", file=sys.stderr)
         return [], 0
     raw = path.read_text(encoding="utf-8", errors="ignore")
-    use_json = fmt == "json" or (fmt == "auto" and path.suffix.lower() in {".json", ".jsonl"})
-    if fmt == "auto" and not use_json and raw.lstrip().startswith(("{", "[")):
-        use_json = True
+    is_json_name = path.suffix.lower() in JSON_SUFFIXES
+    use_json = fmt == "json" or (fmt == "auto" and (is_json_name or looks_like_json(raw)))
+    if fmt == "text":
+        use_json = False
     if use_json:
         try:
             return json.loads(raw), 0
         except json.JSONDecodeError as e:
-            print(f"[tiku_tool] {path} 不是合法 JSON: {e}, 按文本格式重试", file=sys.stderr)
+            print(f"[tiku_tool] {path} 是 JSON 但解析失败({e}), 已跳过该文件; "
+                  f"如果是纯文本题库请用 --format text", file=sys.stderr)
+            return [], 0
     entries, skipped = parse_text_entries(raw)
     return entries, skipped
 
@@ -137,6 +146,9 @@ def cmd_import(args) -> int:
         print(f"[tiku_tool] dry-run: 题库 {before} -> {before + total_added} 条(未写盘)")
         return 0
     output = bank.save(args.output or args.bank)
+    if output is None:
+        print(f"[tiku_tool] 题库文件解析失败, 为避免覆盖原文件已跳过写回: {args.bank}", file=sys.stderr)
+        return 1
     print(f"[tiku_tool] 题库已保存: {output} ({before} -> {len(bank)} 条, "
           f"跳过 {total_skipped_lines} 行)")
     return 0
@@ -161,6 +173,9 @@ def cmd_export(args) -> int:
         print(f"[tiku_tool] dry-run: 未写盘, 合并后应为 {len(bank)} 条")
         return 0
     output = bank.save(args.output or args.bank)
+    if output is None:
+        print(f"[tiku_tool] 题库文件解析失败, 为避免覆盖原文件已跳过写回: {args.bank}", file=sys.stderr)
+        return 1
     print(f"[tiku_tool] 题库已保存: {output} (共 {len(bank)} 条)")
     return 0
 
@@ -197,7 +212,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("import", parents=[common], help="导入题库(json/csv/txt)")
     p.add_argument("--input", "-i", nargs="+", required=True, help="输入文件列表")
-    p.add_argument("--format", "-f", choices=["auto", "json", "text"], default="auto")
+    p.add_argument("--format", "-f", choices=["auto", "json", "text"], default="auto",
+                   help="auto: .json 或内容像 JSON 时按 JSON 解析, 其余按纯文本; text 可强制按文本")
     p.add_argument("--output", "-o", default=None, help="输出题库文件(默认覆盖 --bank)")
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(func=cmd_import)
@@ -209,7 +225,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("export", parents=[common], help="把答案缓存合并回题库")
     p.add_argument("--output", "-o", default=None, help="输出题库文件(默认覆盖 --bank)")
     p.add_argument("--overwrite", action="store_true",
-                   help="用缓存覆盖题库里已有的答案(默认只补新题, 保护人工核对过的答案)")
+                   help="用缓存强制覆盖题库里所有同名题目的答案(默认只补新题, 并更新之前由缓存写进去的条目)")
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(func=cmd_export)
 

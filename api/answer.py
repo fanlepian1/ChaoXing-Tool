@@ -253,12 +253,14 @@ class Tiku:
 
         # 先过缓存
         cache_dao = CacheDAO()
+        q_type = q_info.get('type')
         answer = cache_dao.get_cache(q_info['title'])
         if answer:
             answer = answer.strip()
             # 缓存里的答案也要过类型校验: 旧版本可能写进了与题型不符的答案(例如判断题里存了选项字母),
-            # 那种答案会直接导致提交失败或错答, 这里丢弃并重新搜题
-            if check_answer(answer, q_info['type'], self):
+            # 那种答案会直接导致提交失败或错答, 这里丢弃并重新搜题。
+            # 没有 type 的调用方(脚本/自定义题库)按旧行为直接采信, 不做类型判断。
+            if not q_type or check_answer(answer, q_type, self):
                 logger.info(f"从缓存中获取答案：{q_info['title']} -> {answer}")
                 return answer
             logger.warning(f"缓存中的答案与本题类型不符, 已忽略并重新搜题："
@@ -267,7 +269,7 @@ class Tiku:
         if answer:
             answer = answer.strip()
             logger.info(f"从{self.name}获取答案：{q_info['title']} -> {answer}")
-            if check_answer(answer, q_info['type'], self):
+            if not q_type or check_answer(answer, q_type, self):
                 cache_dao.add_cache(q_info['title'], answer)
                 return answer
             else:
@@ -1534,11 +1536,12 @@ class TikuLocal(Tiku):
 
     # ------------------------------------------------------------ 导出
     def export_cache_to_bank(self, cache_path: Optional[str] = None, bank_path: Optional[str] = None,
-                             overwrite: bool = False) -> dict:
+                             overwrite: Any = "auto") -> dict:
         """把答案缓存合并回本地题库文件。
 
-        默认只补新题(overwrite=False), 保护题库里已经人工核对过的答案。
-        返回 {'added':.., 'overwritten':.., 'skipped':.., 'entries':.., 'output':..}
+        overwrite 默认 "auto": 只补新题 + 更新之前由缓存写进去的条目, 保护你人工核对过的答案,
+        同时避免"上次自动写错了就永远改不回来"。
+        返回 {'added','overwritten','skipped','entries','output'}
         """
         if not self.bank:
             self.bank = LocalBank(paths=split_paths((self._conf or {}).get('local_bank')) or [DEFAULT_BANK_PATH])
@@ -1547,6 +1550,8 @@ class TikuLocal(Tiku):
         result = self.bank.import_cache(cache_path, overwrite=overwrite)
         output = self.bank.save(bank_path)
         result['output'] = output
+        if output is None:
+            logger.error(f'{self.name}题库文件解析失败, 已跳过写回(不覆盖原文件)')
         return result
 
 

@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from api.tiku_bank import (  # noqa: E402
     LocalBank,
     answer_to_text,
+    clean_title,
     collect_entries,
     collect_tiku_config_from_env,
     compact_text,
@@ -47,11 +48,25 @@ class TestCompactText(unittest.TestCase):
         self.assertNotEqual(compact_text("3D打印技术的优势"), compact_text("4D打印技术的优势"))
 
     def test_brackets_are_only_stripped_when_they_are_labels(self):
-        """回归: [0,1] / (2,3) 这种是题面内容, 不能当题型标签删掉。"""
+        """回归: [0,1] / (2,3) / 【0,1】 / 【2024】 这种是题面内容, 不能当题型标签删掉。"""
+        # 全角书名括号以前是无条件削掉的, 同样会造成不同题目撞 key
+        self.assertEqual(compact_text("【0,1】区间上的函数有界"), "01区间上的函数有界")
+        self.assertNotEqual(compact_text("【0,1】区间上的函数有界"), compact_text("【1,2】区间上的函数有界"))
+        self.assertNotEqual(compact_text("【2024】大事记"), compact_text("【2025】大事记"))
+        self.assertNotEqual(compact_text("【第一章】绪论"), compact_text("【第二章】绪论"))
         self.assertEqual(compact_text("[0,1]区间上的函数"), "01区间上的函数")
         self.assertEqual(compact_text("(2,3)区间上的函数"), "23区间上的函数")
+        # 真正的题型标签要照旧剥掉(全角半角都要认)
         self.assertEqual(compact_text("（判断题）HTTP是无状态的"), "http是无状态的")
         self.assertEqual(compact_text("(单选题)以下哪个"), "以下哪个")
+        self.assertEqual(compact_text("[多选]中国的首都"), "中国的首都")
+        self.assertEqual(compact_text("【多选】中国的首都"), "中国的首都")
+        self.assertEqual(compact_text("【1】题干内容"), "题干内容")
+
+    def test_leading_score_suffix_is_stripped(self):
+        """分值也可能出现在题干开头(题库导出常见写法)。"""
+        self.assertEqual(compact_text("（2.0分）下列说法正确的是"), compact_text("下列说法正确的是"))
+        self.assertEqual(clean_title("（2.0分）下列说法正确的是"), "下列说法正确的是")
 
     def test_unify_fullwidth_and_punctuation(self):
         self.assertEqual(compact_text("ＴＣＰ协议，工作在（）层"), "tcp协议工作在层")
@@ -312,6 +327,53 @@ class TestLocalBank(unittest.TestCase):
         bank = LocalBank(paths=[str(data)], fuzzy=False)
         self.assertEqual(bank.load(), 1)
         self.assertTrue(any("答案为空" in issue for issue in bank.issues), bank.issues)
+
+    def test_text_bank_whose_first_line_starts_with_bracket(self):
+        """回归: 纯文本题库第一行常以 [单选题] 开头, 不能被误判成坏 JSON 而整份丢掉。"""
+        text_bank = Path(self.tmp.name) / "bracket.txt"
+        text_bank.write_text("[单选题]下列说法正确的是----A\n{判断题}HTTP是无状态的----正确\n",
+                             encoding="utf-8")
+        bank = LocalBank(paths=[str(text_bank)], fuzzy=False)
+        self.assertEqual(bank.load(), 2)
+        self.assertEqual(bank.issues, [])
+        self.assertEqual(bank.lookup("[单选题]下列说法正确的是"), "A")
+
+    def test_broken_json_bank_is_never_overwritten(self):
+        """回归: 解析失败的题库文件绝不能被回写覆盖(否则用户原始题库就没了)。"""
+        broken = Path(self.tmp.name) / "broken3.json"
+        original = '{"下列哪一项属于网络层的协议？": "A", "HTTP 是无状态协议": "正确"'
+        broken.write_text(original, encoding="utf-8")
+        bank = LocalBank(paths=[str(broken)], fuzzy=False)
+        self.assertEqual(bank.load(), 0)
+        self.assertIn(str(broken), bank.failed_paths)
+        self.assertIsNone(bank.save())                       # 拒绝写入
+        self.assertEqual(broken.read_text(encoding="utf-8"), original)  # 原文没被动过
+        # 显式确认要覆盖时才写
+        self.assertEqual(bank.save(allow_failed_overwrite=True), str(broken))
+
+    def test_cache_can_correct_previously_exported_wrong_answer(self):
+        """回归: 自动回写过的错答案必须还能被后来搜对的答案纠正(不能永久锁死)。"""
+        bank_path = Path(self.tmp.name) / "auto.json"
+        cache_path = Path(self.tmp.name) / "auto-cache.json"
+        bank_path.write_text(json.dumps({"题目Q": {"answer": "A", "source": "cache:cache.json"}},
+                                        ensure_ascii=False), encoding="utf-8")
+        cache_path.write_text(json.dumps({"题目Q": "B"}, ensure_ascii=False), encoding="utf-8")
+        bank = LocalBank(paths=[str(bank_path)], fuzzy=False)
+        bank.load()
+        result = bank.import_cache(cache_path)
+        self.assertEqual(result["overwritten"], 1)
+        self.assertEqual(bank.lookup("题目Q"), "B")
+
+        # 人工核对过的答案(没有 source 或来源是人工)则保持不动
+        curated = Path(self.tmp.name) / "curated.json"
+        curated.write_text(json.dumps({"题目R": "A"}, ensure_ascii=False), encoding="utf-8")
+        cache2 = Path(self.tmp.name) / "curated-cache.json"
+        cache2.write_text(json.dumps({"题目R": "B"}, ensure_ascii=False), encoding="utf-8")
+        bank2 = LocalBank(paths=[str(curated)], fuzzy=False)
+        bank2.load()
+        result2 = bank2.import_cache(cache2)
+        self.assertEqual(result2["skipped"], 1)
+        self.assertEqual(bank2.lookup("题目R"), "A")
 
 
 class TestHelpers(unittest.TestCase):

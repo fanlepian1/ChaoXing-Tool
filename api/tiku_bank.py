@@ -123,16 +123,22 @@ _RE_LEADING_NUMBER = re.compile(
     r"|\d{1,4}\s*[)）\]]"                # 1) / 2） / 3]
     r")\s*(?![0-9])"                     # "3.5GHz" 这种小数不算题号
 )
-# 题型标签: 【…】基本都是标签; ()/[] 只在里面是纯数字或含题型关键词时才当标签,
-# 否则 "[0,1]区间上的函数" 会被误削成 "区间上的函数"。
-# 半角与全角括号都要认: compact_text 会先把全角转半角, 而 clean_title 保留原文。
+# 题型标签: 只有括号里是**题型词**或**短编号**时才当标签剥掉。
+# 否则 "[0,1]区间上的函数" / "【0,1】区间上的函数有界" / "【2024】大事记" 这种题面会被削成同一个 key,
+# 造成精确匹配假命中(静默错答案)与导入时丢题 —— 这与题号过度删减是同一类事故。
+# 说明: 括号里的纯数字只认 1~3 位(题号/序号), 4 位很可能是年份(内容)所以保留。
+_LABEL_WORDS = (r"(?:单选题|多选题|判断题|填空题|简答题|选择题|不定项选择题|名词解释|论述题|计算题|分析题"
+                r"|单选|多选|判断|填空|简答|选择|题目|题干)")
 _RE_TAG = re.compile(
     r"^\s*(?:"
-    r"【[^】]{0,16}】"
-    r"|[（(\[]\s*(?:\d{1,4}|[^）)\]]{0,16}(?:题|选择|判[断定]|填空|简答))\s*[)）\]]"
+    r"【\s*(?:\d{1,3}|" + _LABEL_WORDS + r")\s*】"
+    r"|\[\s*(?:\d{1,3}|" + _LABEL_WORDS + r")\s*\]"
+    r"|[（(]\s*(?:\d{1,3}|" + _LABEL_WORDS + r")\s*[)）]"
     r")\s*"
 )
 _RE_SCORE_SUFFIX = re.compile(r"\s*[（(]\s*\d+(?:\.\d+)?\s*分\s*[)）]\s*$")
+# 分值也可能出现在题面**开头**(题库导出常见: "（2.0分）下列说法正确的是")
+_RE_SCORE_PREFIX = re.compile(r"^\s*[（(]\s*\d+(?:\.\d+)?\s*分\s*[)）]\s*")
 _RE_VARIANT = str.maketrans({"⻛": "风", "⻔": "门", "⻋": "车", "⻢": "马", "⺠": "民", "⻓": "长"})
 _RE_DROP = re.compile(r"[\s，。！？；：、,.!?;:'\"“”‘’`~!@#$%^&*\-_+=|\\/<>《》…·（）()\[\]【】{}]")
 # 全角 ASCII -> 半角
@@ -156,6 +162,7 @@ def compact_text(text: Any) -> str:
     for _ in range(3):
         new = _RE_TAG.sub("", s)
         new = _RE_LEADING_NUMBER.sub("", new)
+        new = _RE_SCORE_PREFIX.sub("", new)
         new = _RE_SCORE_SUFFIX.sub("", new)
         if new == s:
             break
@@ -177,6 +184,7 @@ def clean_title(text: Any) -> str:
     for _ in range(3):
         new = _RE_TAG.sub("", s)
         new = _RE_LEADING_NUMBER.sub("", new)
+        new = _RE_SCORE_PREFIX.sub("", new)
         new = _RE_SCORE_SUFFIX.sub("", new)
         if new == s:
             break
@@ -225,7 +233,8 @@ def _pick(mapping: dict, keys: Iterable[str]) -> Any:
     return None
 
 
-def _entry_from_question_answer(question: Any, answer: Any, qtype: Any = None, source: Optional[str] = None) -> Optional[dict]:
+def _entry_from_question_answer(question: Any, answer: Any, qtype: Any = None, source: Optional[str] = None,
+                                own_source: Any = None) -> Optional[dict]:
     text = str(question).strip() if question is not None else ""
     if not text:
         return None
@@ -238,8 +247,11 @@ def _entry_from_question_answer(question: Any, answer: Any, qtype: Any = None, s
     entry = {"question": text, "answer": ans, "key": key}
     if qtype:
         entry["type"] = str(qtype).strip()
-    if source:
-        entry["source"] = str(source)
+    # 条目自带的来源优先于文件名: 它记录的是"这条答案从哪来"(cache:xxx / manual / 某个题库),
+    # 被文件名覆盖掉的话, 回写时就没法区分"缓存自动写的"和"人工核对的"了
+    source_value = own_source if (isinstance(own_source, str) and own_source.strip()) else source
+    if source_value:
+        entry["source"] = str(source_value).strip()
     return entry
 
 
@@ -263,7 +275,8 @@ def collect_entries(payload: Any, source: Optional[str] = None, stats: Optional[
             q_key = _pick(node, _QUESTION_KEYS)
             a_key = _pick(node, _ANSWER_KEYS)
             if q_key is not None and a_key is not None and not isinstance(q_key, (dict, list)):
-                entry = _entry_from_question_answer(q_key, a_key, _pick(node, _TYPE_KEYS), source)
+                entry = _entry_from_question_answer(q_key, a_key, _pick(node, _TYPE_KEYS), source,
+                                                    own_source=node.get("source"))
                 if entry:
                     entries.append(entry)
                 else:
@@ -281,7 +294,8 @@ def collect_entries(payload: Any, source: Optional[str] = None, stats: Optional[
                     if isinstance(value, dict):
                         inner = _pick(value, _ANSWER_KEYS)
                         if inner is not None:
-                            entry = _entry_from_question_answer(key, inner, _pick(value, _TYPE_KEYS), source)
+                            entry = _entry_from_question_answer(key, inner, _pick(value, _TYPE_KEYS), source,
+                                                                own_source=value.get("source"))
                             if entry:
                                 entries.append(entry)
                                 continue
@@ -313,21 +327,31 @@ def _read_text(path: Any) -> str:
     return raw.decode("utf-8-sig", errors="ignore")
 
 
+JSON_SUFFIXES = (".json", ".jsonl")
+
+
 def looks_like_json(text: str) -> bool:
-    """内容看起来是 JSON(以 { 或 [ 开头) 时, 就不能再退化成纯文本解析。"""
+    """内容是否"像 JSON"。
+
+    只看首个字符是 {/[ 是不够的: 纯文本题库的第一行经常是 "[单选题]题干----A"。
+    真正的 JSON 在开头附近一定有引号, 用它作为判据, 避免把合法文本题库误判成坏 JSON 而整份跳过。
+    """
     if not text:
         return False
-    stripped = text.lstrip()
-    return stripped.startswith("{") or stripped.startswith("[")
+    head = text.lstrip()[:200]
+    if not head or head[0] not in "{[":
+        return False
+    return '"' in head or "'" in head
 
 
 def load_bank_file_with_stats(path: str | Path) -> tuple[list[dict], dict]:
     """读取题库文件, 同时回报问题(坏 JSON / 答案为空的条目数), 供上层提示用户。
 
-    支持 JSON 与纯文本两种格式:
-        * 内容是 JSON 但解析失败 -> 返回空列表并标记 bad_json(绝不退化成文本解析,
-          否则会把 JSON 片段当成"题目/答案"造出垃圾条目, 这些垃圾条目还能模糊命中真题);
-        * 内容是纯文本(题目----答案) -> 按文本格式解析。
+    格式判定:
+        * ``.json`` / ``.jsonl`` 后缀 -> 只能是 JSON, 解析失败就跳过并报 bad_json
+          (绝不退化成文本解析: 截断的 JSON 会被切成"JSON 片段当题目/答案"的垃圾条目,
+           那些垃圾条目还能模糊命中真题);
+        * 其他后缀 -> 内容像 JSON 则按 JSON 解析, 否则按纯文本(题目----答案)解析。
     """
     stats: dict = {}
     p = Path(path)
@@ -337,7 +361,8 @@ def load_bank_file_with_stats(path: str | Path) -> tuple[list[dict], dict]:
     if not raw.strip():
         return [], stats
 
-    if looks_like_json(raw):
+    is_json_name = p.suffix.lower() in JSON_SUFFIXES
+    if is_json_name or looks_like_json(raw):
         try:
             payload = json.loads(raw)
         except json.JSONDecodeError:
@@ -467,6 +492,7 @@ class LocalBank:
         self._mtimes: dict[str, float] = {}
         self.loaded_files: list[str] = []
         self.issues: list[str] = []  # 加载时发现的问题(坏 JSON / 空答案条目), 供上层提示
+        self.failed_paths: set[str] = set()  # 解析失败的文件: 绝不能被 save() 覆盖掉
 
     # ------------------------------------------------------------------ load
     def load(self, force: bool = True) -> int:
@@ -476,6 +502,7 @@ class LocalBank:
         由上层打日志提示, 而不是静默忽略。
         """
         issues: list[str] = []
+        failed_paths: set[str] = set()
         with self._lock:
             entries: list[dict] = []
             loaded_files: list[str] = []
@@ -483,6 +510,7 @@ class LocalBank:
                 file_entries, stats = load_bank_file_with_stats(path)
                 if stats.get("bad_json"):
                     issues.append(f"{path}: 是 JSON 但解析失败(文件可能被截断或损坏), 已跳过该文件")
+                    failed_paths.add(str(path))
                 if stats.get("skipped_empty"):
                     issues.append(f"{path}: 有 {stats['skipped_empty']} 条题目答案为空, 已跳过(建议在题库里补齐或删掉)")
                 if file_entries:
@@ -500,6 +528,7 @@ class LocalBank:
             self._loaded_at = time.time()
             self.loaded_files = loaded_files
             self.issues = issues
+            self.failed_paths = failed_paths
             return len(self._exact)
 
     def _maybe_reload(self) -> None:
@@ -618,11 +647,14 @@ class LocalBank:
                     break
             return old["answer"] != entry["answer"]
 
-    def merge(self, payload: Any, source: Optional[str] = None, overwrite: bool = True) -> dict:
+    def merge(self, payload: Any, source: Optional[str] = None, overwrite: Any = True) -> dict:
         """合并任意结构的一次性题库数据。
 
-        overwrite=False 时只补新题, 不动题库里已有的答案 —— 用于"运行结束后把缓存回写题库":
-        题库里的答案可能是人工核对过的, 不该被自动搜到的答案覆盖。
+        overwrite 三种取值:
+            * True  —— 一律覆盖(用户显式 import 时的行为);
+            * False —— 只补新题, 已有的一律不动;
+            * "auto"(默认给 import_cache 用) —— 只覆盖**来源是缓存**的条目(它的 source 以 cache: 开头)。
+              这样既不会覆盖人工核对过/导入的答案, 又不会把之前自动写错、后来搜对了的答案永久锁死。
         返回 {"added", "overwritten", "skipped", "entries"}。
         """
         added = overwritten = skipped = 0
@@ -630,7 +662,7 @@ class LocalBank:
             key = entry["key"]
             with self._lock:
                 old = self._exact.get(key)
-            if old is not None and not overwrite:
+            if old is not None and not self._can_overwrite(old, overwrite):
                 if old["answer"] != entry["answer"]:
                     skipped += 1
                 continue
@@ -641,36 +673,50 @@ class LocalBank:
                 overwritten += 1
         return {"added": added, "overwritten": overwritten, "skipped": skipped, "entries": len(self)}
 
+    @staticmethod
+    def _can_overwrite(old_entry: dict, overwrite: Any) -> bool:
+        if overwrite is True:
+            return True
+        if overwrite is False:
+            return False
+        # "auto": 只覆盖之前由缓存自动写进去的条目
+        return str(old_entry.get("source") or "").startswith("cache:")
+
     def import_cache(self, cache_path: Any = DEFAULT_CACHE_PATH, source: Optional[str] = None,
-                     overwrite: bool = False) -> dict:
+                     overwrite: Any = "auto") -> dict:
         """把答案缓存(cache.json: 题目 -> 答案)合并进题库。
 
-        默认只补新题(overwrite=False), 保护题库里已有的答案; 显式传 overwrite=True 才覆盖。
+        默认 overwrite="auto": 只补新题 + 更新之前由缓存写进去的条目,
+        保护你在题库里人工核对过的答案, 同时避免"上次写错了就永远改不回来"。
         """
         empty = {"added": 0, "overwritten": 0, "skipped": 0, "entries": len(self)}
         path = Path(cache_path)
         if not path.is_file():
             return empty
         raw = _read_text(path)
-        if looks_like_json(raw):
-            try:
-                payload = json.loads(raw or "{}")
-            except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-                return empty
-        else:
+        if not looks_like_json(raw):
             # 缓存文件只可能是 JSON, 内容不像 JSON 说明文件坏了, 不要退化成文本解析
+            return empty
+        try:
+            payload = json.loads(raw or "{}")
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             return empty
         if not isinstance(payload, dict):
             return empty
         return self.merge(payload, source=source or f"cache:{path.name}", overwrite=overwrite)
 
-    def save(self, path: Any = None, indent: int = 2) -> Optional[str]:
-        """保存题库到文件(默认第一个路径), 返回写入的文件路径。
+    def save(self, path: Any = None, indent: int = 2, allow_failed_overwrite: bool = False) -> Optional[str]:
+        """保存题库到文件(默认第一个路径), 返回写入的文件路径; 因保护而拒绝写入时返回 None。
 
-        按归一化后的题面去重(后加载/后写入的答案生效), 保证文件不会越存越乱。
+        两条安全规则:
+            1. 按归一化后的题面去重(后写入的答案生效), 文件不会越存越乱;
+            2. 加载时解析失败的文件**拒绝写入** —— 否则回写会把用户原始题库(可能只是格式读不对)
+               整个覆盖掉。确认要覆盖时显式传 allow_failed_overwrite=True。
         """
         target = Path(path) if path else (self.paths[0] if self.paths else Path(DEFAULT_BANK_PATH))
         with self._lock:
+            if str(target) in self.failed_paths and not allow_failed_overwrite:
+                return None
             # 按归一化题面去重: 后出现的条目覆盖同 key 的旧条目(dict 保留首次出现的位置)
             deduped: dict[str, dict] = {}
             for entry in self._entries:

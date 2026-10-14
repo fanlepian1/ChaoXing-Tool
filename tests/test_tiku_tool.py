@@ -126,6 +126,46 @@ class TestCommands(unittest.TestCase):
         value = next(iter(data.values()))
         self.assertEqual(value["answer"] if isinstance(value, dict) else value, "A")
 
+    def test_text_file_starting_with_bracket_is_imported(self):
+        """回归: 纯文本题库第一行以 [单选题] 开头时, 不能被误判成坏 JSON 而丢掉。"""
+        source = self.tmpdir / "bracket.txt"
+        source.write_text("[单选题]下列说法正确的是----A\n（判断题）HTTP是无状态的----正确\n",
+                          encoding="utf-8")
+        code = tiku_tool.main(["import", "--bank", str(self.bank), "--input", str(source)])
+        self.assertEqual(code, 0)
+        data = json.loads(self.bank.read_text(encoding="utf-8"))
+        self.assertEqual(len(data), 2)
+
+    def test_broken_json_input_is_skipped_not_guessed(self):
+        """回归: 坏 JSON 不能退化成文本解析导入垃圾条目。"""
+        source = self.tmpdir / "broken.json"
+        source.write_text('{"下列哪一项属于网络层的协议？": "A", "HTTP 是无状态协议": "正确"',
+                          encoding="utf-8")
+        code = tiku_tool.main(["import", "--bank", str(self.bank), "--input", str(source)])
+        self.assertEqual(code, 0)  # 不炸, 但什么都没导入
+        if self.bank.exists():
+            self.assertEqual(json.loads(self.bank.read_text(encoding="utf-8")), {})
+
+    def test_export_refuses_to_overwrite_broken_bank(self):
+        """回归: 题库文件坏掉时, 回写必须拒绝覆盖, 保住用户原文件。"""
+        original = '{"半截": "A"'
+        self.bank.write_text(original, encoding="utf-8")
+        self.cache.write_text(json.dumps({"题目": "A"}, ensure_ascii=False), encoding="utf-8")
+        code = tiku_tool.main(["export", "--bank", str(self.bank), "--cache", str(self.cache)])
+        self.assertEqual(code, 1)
+        self.assertEqual(self.bank.read_text(encoding="utf-8"), original)
+
+    def test_export_overwrite_flag_forces(self):
+        self.bank.write_text(json.dumps({"题目": "A"}, ensure_ascii=False), encoding="utf-8")
+        self.cache.write_text(json.dumps({"题目": "B"}, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(tiku_tool.main(["export", "--bank", str(self.bank), "--cache", str(self.cache)]), 0)
+        data = json.loads(self.bank.read_text(encoding="utf-8"))
+        self.assertEqual(data["题目"] if isinstance(data["题目"], str) else data["题目"]["answer"], "A")
+        self.assertEqual(tiku_tool.main(["export", "--bank", str(self.bank), "--cache", str(self.cache),
+                                         "--overwrite"]), 0)
+        data = json.loads(self.bank.read_text(encoding="utf-8"))
+        self.assertEqual(data["题目"] if isinstance(data["题目"], str) else data["题目"]["answer"], "B")
+
     def test_bank_flag_after_subcommand(self):
         # 文档里写的是 `stats --bank xxx`, 解析器必须支持这个顺序
         self.assertEqual(tiku_tool.main(["stats", "--bank", str(self.bank)]), 0)

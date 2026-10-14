@@ -131,6 +131,80 @@ class ActivityType(IntEnum):
     SIGNIN = 2
 
 
+# ---------------------------------------------------------------------------
+# 选项匹配助手(原先内嵌在 study_work 里, 提到模块级便于单测)
+# ---------------------------------------------------------------------------
+
+_VARIANT_CHAR_MAP = str.maketrans({'⻛': '风', '⻔': '门', '⻋': '车', '⻢': '马'})
+_RE_OPTION_PREFIX = re.compile(r'^[A-Za-z]\s*[.、:：)?）]?\s*')
+_RE_DROP_FOR_MATCH = re.compile(r'[，。！？；：,.!?;:()（）\[\]【】"“”‘’\-_/\\|]')
+
+
+def normalize_text(text) -> str:
+    """归一化题面/选项文本用于比较: 去选项字母前缀、去空白与标点、统一异体字、转小写。"""
+    if not isinstance(text, str):
+        text = str(text)
+    normalized = text.translate(_VARIANT_CHAR_MAP)
+    normalized = _RE_OPTION_PREFIX.sub('', normalized)
+    normalized = re.sub(r'\s+', '', normalized)
+    normalized = _RE_DROP_FOR_MATCH.sub('', normalized)
+    return normalized.lower()
+
+
+def get_option_text(option: str) -> str:
+    """去掉选项行的字母前缀, 返回选项正文。"""
+    return _RE_OPTION_PREFIX.sub('', option).strip()
+
+
+def is_subsequence(a, o) -> bool:
+    """a 的字符是否按顺序都出现在 o 中(用于"答案去掉字母编号后应是选项的子序列"的判定)。"""
+    iter_o = iter(o)
+    return all(c in iter_o for c in a)
+
+
+def exact_option_letter(target: str, options: list) -> str:
+    """答案与某个选项的正文完全一致时, 直接返回该选项字母, 否则返回空串。
+
+    为什么需要它: 调用方还会用"是否是选项的子序列"逐个匹配, 遇到嵌套文本会先命中错误的选项
+    (例: 选项 A「操作系统是一种系统软件」/ C「系统软件」, 答案是 C 时子序列匹配会先命中 A)。
+    题库返回的答案经常是选项原文(或由字母展开而来), 这类情况必须先做精确匹配。
+    """
+    if not target or not options:
+        return ""
+    target_norm = normalize_text(target)
+    if not target_norm:
+        return ""
+    for option in options:
+        if normalize_text(get_option_text(option)) == target_norm:
+            return option[:1]
+    return ""
+
+
+def best_option_by_similarity(target: str, options: list, threshold: float = 0.8) -> str:
+    """相似度兜底: 返回与 target 最接近的选项字母(低于阈值返回空串)。"""
+    if not target or not options:
+        return ""
+    target_norm = normalize_text(target)
+    if not target_norm:
+        return ""
+
+    best_letter = ""
+    best_score = 0.0
+    for option in options:
+        option_norm = normalize_text(get_option_text(option))
+        if not option_norm:
+            continue
+        score = SequenceMatcher(None, target_norm, option_norm).ratio()
+        if score > best_score:
+            best_score = score
+            best_letter = option[:1]
+
+    if best_score >= threshold:
+        logger.info(f"相似度兜底匹配成功: {best_letter} (score={best_score:.2f}, threshold={threshold:.2f})")
+        return best_letter
+    return ""
+
+
 class Chaoxing:
     def __init__(self, account: Account = None, tiku: Tiku = None, **kwargs):
         self.account = account
@@ -792,53 +866,6 @@ class Chaoxing:
 
             return cleaned_res
 
-        def normalize_text(text: str) -> str:
-            if not isinstance(text, str):
-                text = str(text)
-            # 统一常见异体字符，降低“风/⻛”类差异导致的匹配失败。
-            char_map = str.maketrans({
-                '⻛': '风',
-                '⻔': '门',
-                '⻋': '车',
-                '⻢': '马',
-            })
-            normalized = text.translate(char_map)
-            normalized = re.sub(r'^[A-Za-z]\s*[.、:：)?）]?\s*', '', normalized)
-            normalized = re.sub(r'\s+', '', normalized)
-            normalized = re.sub(r'[，。！？；：,.!?;:()（）\[\]【】"“”‘’\-_/\\|]', '', normalized)
-            return normalized.lower()
-
-        def get_option_text(option: str) -> str:
-            return re.sub(r'^[A-Za-z]\s*[.、:：)?）]?\s*', '', option).strip()
-
-        def best_option_by_similarity(target: str, options: list, threshold: float = 0.8) -> str:
-            if not target or not options:
-                return ""
-            target_norm = normalize_text(target)
-            if not target_norm:
-                return ""
-
-            best_letter = ""
-            best_score = 0.0
-            for option in options:
-                option_text = get_option_text(option)
-                option_norm = normalize_text(option_text)
-                if not option_norm:
-                    continue
-                score = SequenceMatcher(None, target_norm, option_norm).ratio()
-                if score > best_score:
-                    best_score = score
-                    best_letter = option[:1]
-
-            if best_score >= threshold:
-                logger.info(f"相似度兜底匹配成功: {best_letter} (score={best_score:.2f}, threshold={threshold:.2f})")
-                return best_letter
-            return ""
-
-        def is_subsequence(a, o):
-            iter_o = iter(o)
-            return all(c in iter_o for c in a)
-
         # FIXME: Use tenacity for retrying
         def with_retry(max_retries=3, delay=1):
             def decorator(func):
@@ -932,7 +959,11 @@ class Chaoxing:
                     if res_list is not None and options_list is not None:
                         for _a in clean_res(res_list):
                             matched = False
-                            for o in options_list:
+                            exact_letter = exact_option_letter(_a, options_list)
+                            if exact_letter:
+                                answer += exact_letter
+                                matched = True
+                            for o in ([] if matched else options_list):
                                 if (
                                         is_subsequence(_a, o)  # 去掉各种符号和前面ABCD的答案应当是选项的子序列
                                 ):
@@ -951,7 +982,9 @@ class Chaoxing:
                     options_list = multi_cut(q["options"])
                     if options_list is not None:
                         t_res = clean_res(res)
-                        for o in options_list:
+                        if t_res:
+                            answer = exact_option_letter(t_res[0], options_list)
+                        for o in ([] if answer else options_list):
                             if is_subsequence(t_res[0], o):
                                 answer = o[:1]
                                 break
