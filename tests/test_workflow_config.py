@@ -193,6 +193,22 @@ class TestWorkflowFile(unittest.TestCase):
             from_env = '"$' in line or "${" in line  # shell 展开上一节由 secrets 注入的环境变量
             self.assertTrue(from_secrets or from_env, f"疑似明文凭据: {line.strip()}")
 
+    def test_manual_trigger_is_wired(self):
+        """手动触发必须真的可用: 每个输入都要被引用, 否则界面上填了没反应。"""
+        self.assertIn("workflow_dispatch", self.text)
+        for key in ("course_list", "provider", "submit", "speed", "jobs", "bank_url", "dry_run"):
+            self.assertIn(f"github.event.inputs.{key}", self.text, f"{key} 没有接到任何地方")
+        # 干跑与导库都要有对应的条件分支
+        self.assertIn("github.event.inputs.dry_run == 'true'", self.text)
+        self.assertIn("github.event.inputs.dry_run != 'true'", self.text)
+        self.assertIn("github.event.inputs.bank_url != ''", self.text)
+
+    def test_run_summary_is_emitted(self):
+        """运行摘要在 Actions 页面直接显示命中情况, 不该被顺手删掉。"""
+        self.assertIn("GITHUB_STEP_SUMMARY", self.text)
+        self.assertIn("章节检测题库覆盖率", self.text)
+
+
     def test_bank_writeback_runs_even_on_failure(self):
         # 中途失败也要把这一轮搜到的答案落盘, 不能白跑
         self.assertIn("if: always()", self.text)

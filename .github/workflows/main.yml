@@ -7,25 +7,42 @@ on:
     paths-ignore:
       - 'tiku/**'
       - '**.md'
-  # 定时刷课: 默认关闭(保持你原来的设置)。要每天自动刷课就把下面两行前面的 # 去掉。
-  # 注意 cron 用的是 UTC: "0 0 * * *" = 北京时间每天 08:00
+  # 定时刷课: 默认关闭(保持你原来的设置)。要每天自动刷就把下面两行前面的 # 去掉。
+  # 注意 cron 用 UTC: "0 0 * * *" = 北京时间每天 08:00
   #schedule:
   #  - cron: "0 0 * * *"
-  # 也可以在 Actions 页面手动触发, 并临时覆盖题库/提交策略
+
+  # ============ 手动触发: 在 Actions 页面点 "Run workflow" 就能跑 ============
   workflow_dispatch:
     inputs:
+      course_list:
+        description: '课程ID(逗号分隔)。留空=secrets 里的 CHAOXING_COURSE_LIST, 再留空=全部课程'
+        required: false
+        default: ''
       provider:
-        description: '题库 provider(留空则用 secrets.TIKU_PROVIDER, 未配置时为 auto)'
+        description: '题库(留空=secrets 里的 TIKU_PROVIDER, 再留空=auto)。例: TikuLocal 或 TikuLocal,TikuGo,TikuYanxi'
         required: false
         default: ''
       submit:
-        description: '是否提交章节检测答案 true/false(留空则用 secrets.TIKU_SUBMIT)'
+        description: '是否提交章节检测答案(true/false)。留空=secrets 里的 TIKU_SUBMIT, 再留空=false(只搜答案不提交)'
         required: false
         default: ''
-      course_list:
-        description: '课程ID, 逗号分隔(留空则用 secrets.CHAOXING_COURSE_LIST, 再留空=全部课程)'
+      speed:
+        description: '视频倍速 1~2。留空=secrets 里的 CHAOXING_SPEED, 再留空=1'
         required: false
         default: ''
+      jobs:
+        description: '并发章节数。留空=secrets 里的 CHAOXING_JOBS, 再留空=4'
+        required: false
+        default: ''
+      bank_url:
+        description: '可选: 题库文件直链(json/txt), 运行前导入到 tiku/bank.json'
+        required: false
+        default: ''
+      dry_run:
+        description: '只检查配置与题库、不真正刷课(true/false)'
+        required: false
+        default: 'false'
 
 # 同一分支只跑一个任务, 避免两次运行同时写题库
 concurrency:
@@ -45,8 +62,8 @@ jobs:
       CHAOXING_USERNAME: ${{ secrets.CHAOXING_USERNAME }}
       CHAOXING_PASSWORD: ${{ secrets.CHAOXING_PASSWORD }}
       CHAOXING_COURSE_LIST: ${{ github.event.inputs.course_list || secrets.CHAOXING_COURSE_LIST }}
-      CHAOXING_SPEED: ${{ secrets.CHAOXING_SPEED }}
-      CHAOXING_JOBS: ${{ secrets.CHAOXING_JOBS }}
+      CHAOXING_SPEED: ${{ github.event.inputs.speed || secrets.CHAOXING_SPEED }}
+      CHAOXING_JOBS: ${{ github.event.inputs.jobs || secrets.CHAOXING_JOBS }}
       CHAOXING_NOTOPEN_ACTION: ${{ secrets.CHAOXING_NOTOPEN_ACTION }}
 
       # ---------------- 题库 ----------------
@@ -94,10 +111,16 @@ jobs:
       - name: 自检(题库与配置单测)
         run: python -m unittest discover -s tests -t .
 
-      - name: 从环境变量生成 config.ini
+      - name: 生成 config.ini(从环境变量/secrets)
         run: |
           python scripts/gen_config.py --template config_template.ini --out config.ini --check
           python scripts/gen_config.py --template config_template.ini --out config.ini
+
+      - name: 导入题库(可选, 仅手动触发填了 bank_url 时)
+        if: ${{ github.event.inputs.bank_url != '' }}
+        run: |
+          curl -fsSL "${{ github.event.inputs.bank_url }}" -o /tmp/import_bank
+          python scripts/tiku_tool.py import --bank tiku/bank.json --input /tmp/import_bank
 
       - name: 恢复题库缓存(备份手段)
         uses: actions/cache/restore@v4
@@ -108,7 +131,15 @@ jobs:
             tiku-cache-
 
       - name: 运行刷课
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         run: python main.py --config config.ini -u "$CHAOXING_USERNAME" -p "$CHAOXING_PASSWORD" -l "$CHAOXING_COURSE_LIST"
+
+      - name: 干跑(只检查配置与题库, 不刷课)
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        run: |
+          python scripts/tiku_tool.py stats
+          python scripts/tiku_tool.py lookup -q "以下哪个是网络层协议？" || true
+          echo "干跑结束: 配置与题库都可用, 去掉 dry_run 即可真正刷课"
 
       - name: 题库回写(缓存合并进 tiku/bank.json)
         if: always()
@@ -137,6 +168,29 @@ jobs:
         with:
           path: tiku/cache.json
           key: tiku-cache-${{ github.run_id }}
+
+      - name: 运行摘要(题目命中情况一目了然)
+        if: always()
+        run: |
+          {
+            echo "## 本次运行摘要"
+            echo ""
+            echo "| 项 | 值 |"
+            echo "| --- | --- |"
+            echo "| 题库 provider | \`$CHAOXING_TIKU_PROVIDER\` |"
+            echo "| 是否提交章节检测 | \`${CHAOXING_TIKU_SUBMIT:-false}\` |"
+            echo "| 干跑 | \`${{ github.event.inputs.dry_run == 'true' }}\` |"
+            echo ""
+            echo "### 题库现状"
+            echo '```'
+            python scripts/tiku_tool.py stats 2>&1 || true
+            echo '```'
+            echo ""
+            echo "### 命中与覆盖率(日志摘录)"
+            echo '```'
+            grep -aE "题库已启用|本地题库已加载|章节检测题库覆盖率|从缓存中获取答案|获取答案失败" chaoxing.log 2>/dev/null | tail -n 25 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 上传运行日志
         if: always()
