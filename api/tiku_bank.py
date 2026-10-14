@@ -159,9 +159,11 @@ _CANONICALIZE = {
 # 纯格式噪音: 精确匹配时直接丢弃
 _DROP_CHARS = frozenset(
     " \t\r\n\u3000"
-    "\"'“”‘’`「」『』《》"
     "\u2026\uff5e\u2027"
+    "「」『』《》"
 )
+# 引号类: 平时是格式噪音(「“一带一路”」), 但夹在数字中间时算内容(3“5 不能等于 35)
+_QUOTE_CHARS = frozenset("\"'“”‘’`")
 # 括号类: 精确匹配时保留(区分 (0,1) 与 [0,1]), 模糊匹配时允许两边"只有括号不同"
 _NOISE_CHARS = frozenset("()[]{}（）〈〉")
 # 承载语义的 ASCII 运算符
@@ -216,6 +218,12 @@ def compact_text(text: Any) -> str:
             parts.append(ch)
             continue
         if ch in _DROP_CHARS or ch in _SENTENCE_PUNCT:
+            continue
+        if ch in _QUOTE_CHARS:
+            prev_ch = chars[index - 1] if index > 0 else ""
+            next_ch = chars[index + 1] if index + 1 < length else ""
+            if prev_ch.isdigit() and next_ch.isdigit():
+                parts.append(f"~{ord(ch):x},")
             continue
         if ch in _AMBIGUOUS_PUNCT:
             prev_ch = chars[index - 1] if index > 0 else ""
