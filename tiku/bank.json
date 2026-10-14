@@ -1,2 +1,7 @@
 {
+  "题目A": {
+    "answer": "A",
+    "source": "cache:cache.json",
+    "auto_answer": "A"
+  }
 }
