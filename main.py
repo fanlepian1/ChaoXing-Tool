@@ -2,6 +2,7 @@
 import argparse
 import configparser
 import enum
+import os
 import sys
 import threading
 import time
@@ -14,13 +15,22 @@ from typing import Any
 
 from tqdm import tqdm
 
-from api.answer import Tiku
+from api.answer import Tiku, CacheDAO
 from api.base import Chaoxing, Account, StudyResult
 from api.exceptions import LoginError, InputFormatError
 from api.logger import configure_console_logger, logger
 from api.notification import Notification
 from api.live import Live
 from api.live_process import LiveProcessor
+from api.tiku_bank import (
+    DEFAULT_BANK_PATH,
+    DEFAULT_CACHE_PATH,
+    DEFAULT_TIKU_CONFIG,
+    LocalBank,
+    collect_tiku_config_from_env,
+    split_paths,
+)
+
 
 class ChapterResult(enum.Enum):
     SUCCESS=0,
@@ -65,10 +75,10 @@ def parse_args():
         "-l", "--list", type=str, default=None, help="要学习的课程ID列表, 以 , 分隔"
     )
     parser.add_argument(
-        "-s", "--speed", type=float, default=1.0, help="视频播放倍速 (默认1, 最大2)"
+        "-s", "--speed", type=float, default=None, help="视频播放倍速 (默认1, 最大2)"
     )
     parser.add_argument(
-        "-j", "--jobs", type=int, default=4, help="同时进行的章节数 (默认4, 如果一个章节有多个任务点，不会限制同时处理任务点的数量)"
+        "-j", "--jobs", type=int, default=None, help="同时进行的章节数 (默认4, 如果一个章节有多个任务点，不会限制同时处理任务点的数量)"
     )
 
     parser.add_argument(
@@ -79,12 +89,39 @@ def parse_args():
         help="启用调试模式, 输出DEBUG级别日志",
     )
     parser.add_argument(
-        "-a", "--notopen-action", type=str, default="retry", 
+        "-a", "--notopen-action", type=str, default=None, 
         choices=["retry", "ask", "continue"],
         help="遇到关闭任务点时的行为: retry-重试, ask-询问, continue-继续"
     )
 
     parser.add_argument("--auto-sign", action="store_true", help="自动签到")
+
+    # ---------------- 题库配置(命令行优先级最高, 方便 GitHub Actions 直接传参) ----------------
+    tiku_group = parser.add_argument_group("题库")
+    tiku_group.add_argument("--tiku-provider", type=str, default=None,
+                            help="题库提供方, 英文逗号分隔可组回退链, 例: TikuLocal,TikuGo,TikuYanxi; "
+                                 "auto=按已配置的凭据自动组链")
+    tiku_group.add_argument("--no-tiku", action="store_true", help="强制关闭题库")
+    tiku_group.add_argument("--tiku-submit", type=str_to_bool, default=None, nargs="?", const=True,
+                            help="是否提交章节检测答案(true/false)")
+    tiku_group.add_argument("--tiku-cover-rate", type=float, default=None, help="最低题库覆盖率")
+    tiku_group.add_argument("--tiku-delay", type=float, default=None, help="每题查询间隔(秒)")
+    tiku_group.add_argument("--tiku-tokens", type=str, default=None, help="言溪/LIKE知识库的 token, 逗号分隔")
+    tiku_group.add_argument("--tiku-url", type=str, default=None, help="TikuAdapter(自建)接口地址")
+    tiku_group.add_argument("--tiku-endpoint", type=str, default=None, help="AI 题库的 OpenAI 兼容 Endpoint")
+    tiku_group.add_argument("--tiku-key", type=str, default=None, help="AI 题库的 API Key")
+    tiku_group.add_argument("--tiku-model", type=str, default=None, help="AI 题库的模型名")
+    tiku_group.add_argument("--tiku-go-authorization", type=str, default=None, help="GO题解除限流的 Authorization")
+    tiku_group.add_argument("--tiku-siliconflow-key", type=str, default=None, help="硅基流动 API Key")
+    tiku_group.add_argument("--tiku-local-bank", type=str, default=None,
+                            help=f"本地题库文件, 逗号分隔(默认 {DEFAULT_BANK_PATH})")
+    tiku_group.add_argument("--tiku-local-api", type=str, default=None, help="自建题库接口地址(TikuLocal 用)")
+    tiku_group.add_argument("--tiku-cache-file", type=str, default=None,
+                            help=f"答案缓存文件(默认 {DEFAULT_CACHE_PATH})")
+    tiku_group.add_argument("--tiku-export-bank", action="store_true",
+                            help="运行结束后把本次积累的答案缓存合并回本地题库文件")
+    tiku_group.add_argument("--tiku-opt", action="append", default=None, metavar="KEY=VALUE",
+                            help="任意 [tiku] 配置项, 可重复, 例: --tiku-opt local_threshold=0.9")
 
     # 在解析之前捕获 -h 的行为
     if len(sys.argv) == 2 and sys.argv[1] in {"-h", "--help"}:
@@ -153,20 +190,229 @@ def build_config_from_args(args):
         "notopen_action": args.notopen_action if args.notopen_action else "retry",
         "verbose": args.verbose,
     }
-    return common_config, {}, {}
+    return common_config, collect_tiku_config_from_env(), collect_notification_config_from_env()
+
+
+# ============================================================================
+# 配置合并: 默认值 < config.ini < 环境变量 < 命令行参数
+# 这样 GitHub Actions 只需要把 secrets 映射成环境变量, 不必把密码写进仓库
+# ============================================================================
+COMMON_ENV_MAP = {
+    "CHAOXING_USERNAME": "username",
+    "CHAOXING_PASSWORD": "password",
+    "CHAOXING_COURSE_LIST": "course_list",
+    "CHAOXING_SPEED": "speed",
+    "CHAOXING_JOBS": "jobs",
+    "CHAOXING_NOTOPEN_ACTION": "notopen_action",
+    "CHAOXING_USE_COOKIES": "use_cookies",
+    "CHAOXING_VERBOSE": "verbose",
+}
+
+NOTIFICATION_ENV_MAP = {
+    "CHAOXING_NOTIFY_PROVIDER": "provider",
+    "CHAOXING_NOTIFY_URL": "url",
+    "CHAOXING_NOTIFY_TG_CHAT_ID": "tg_chat_id",
+}
+
+TIKU_NUMERIC_KEYS = ("cover_rate", "delay", "local_threshold", "local_api_timeout")
+
+
+def collect_notification_config_from_env(env: dict = None) -> dict:
+    """收集推送通知相关的环境变量。"""
+    env = os.environ if env is None else env
+    conf: dict[str, str] = {}
+    for env_key, conf_key in NOTIFICATION_ENV_MAP.items():
+        raw = env.get(env_key)
+        if raw is not None and str(raw).strip():
+            conf[conf_key] = str(raw).strip()
+    return conf
+
+
+def build_tiku_config_from_args(args) -> dict:
+    """把命令行里的题库参数转成 [tiku] 配置键(只收集显式传入的)。"""
+    conf: dict[str, Any] = {}
+    mapping = [
+        ("tiku_provider", "provider"),
+        ("tiku_tokens", "tokens"),
+        ("tiku_url", "url"),
+        ("tiku_endpoint", "endpoint"),
+        ("tiku_key", "key"),
+        ("tiku_model", "model"),
+        ("tiku_go_authorization", "go_authorization"),
+        ("tiku_siliconflow_key", "siliconflow_key"),
+        ("tiku_local_bank", "local_bank"),
+        ("tiku_local_api", "local_api"),
+        ("tiku_cache_file", "cache_file"),
+    ]
+    for arg_name, conf_key in mapping:
+        value = getattr(args, arg_name, None)
+        if value is not None and str(value).strip():
+            conf[conf_key] = str(value).strip()
+    if getattr(args, "tiku_submit", None) is not None:
+        conf["submit"] = "true" if args.tiku_submit else "false"
+    if getattr(args, "tiku_cover_rate", None) is not None:
+        conf["cover_rate"] = args.tiku_cover_rate
+    if getattr(args, "tiku_delay", None) is not None:
+        conf["delay"] = args.tiku_delay
+    if getattr(args, "tiku_export_bank", False):
+        conf["export_bank"] = "true"
+    for item in (getattr(args, "tiku_opt", None) or []):
+        if "=" not in item:
+            logger.warning(f"忽略无效的 --tiku-opt: {item} (应为 KEY=VALUE)")
+            continue
+        key, _, value = item.partition("=")
+        key = key.strip().lower()
+        if key:
+            conf[key] = value.strip()
+    return conf
+
+
+def resolve_auto_provider(tiku_config: dict) -> str:
+    """provider=auto 时, 按已配置的凭据自动组一条回退链(离线优先)。"""
+    chain = ["TikuLocal"]
+    if tiku_config.get("go_authorization") or str_to_bool(tiku_config.get("go_enabled", "true")):
+        chain.append("TikuGo")
+    if tiku_config.get("tokens"):
+        chain.append("TikuYanxi")
+    if tiku_config.get("url"):
+        chain.append("TikuAdapter")
+    if tiku_config.get("siliconflow_key"):
+        chain.append("SiliconFlow")
+    if tiku_config.get("endpoint") and tiku_config.get("key"):
+        chain.append("AI")
+    return ",".join(chain)
+
+
+def resolve_tiku_config(file_config: dict = None, args=None, env: dict = None) -> dict:
+    """合并题库配置并做类型归整。"""
+    conf: dict[str, Any] = dict(DEFAULT_TIKU_CONFIG)
+    for key, value in (file_config or {}).items():
+        if value is None:
+            continue
+        conf[key] = value.strip() if isinstance(value, str) else value
+    conf.update(collect_tiku_config_from_env(env))
+    if args is not None:
+        conf.update(build_tiku_config_from_args(args))
+
+    for key in TIKU_NUMERIC_KEYS:
+        if key in conf:
+            try:
+                conf[key] = float(conf[key])
+            except (TypeError, ValueError):
+                # 保留合理默认值, 而不是把字符串塞给 time.sleep / 比较运算
+                if key in DEFAULT_TIKU_CONFIG:
+                    conf[key] = float(DEFAULT_TIKU_CONFIG[key])
+                    logger.warning(f"题库配置 {key} 不是数字, 已回退默认值 {conf[key]}")
+                else:
+                    conf.pop(key)
+                    logger.warning(f"题库配置 {key} 不是数字, 已忽略")
+
+    provider = str(conf.get("provider") or "").strip()
+    if provider.lower() == "auto":
+        provider = resolve_auto_provider(conf)
+    if args is not None and getattr(args, "no_tiku", False):
+        provider = ""
+    conf["provider"] = provider
+    return conf
+
+
+def describe_tiku_config(tiku_config: dict) -> str:
+    """生成一份脱敏后的题库配置摘要, 便于在日志/Actions 里核对。"""
+    secret_keys = {"tokens", "key", "siliconflow_key", "go_authorization", "password"}
+
+    def mask(value):
+        text = str(value)
+        if len(text) <= 4:
+            return "****"
+        return f"{text[:2]}****{text[-2:]}"
+
+    parts = []
+    for key in sorted(tiku_config):
+        value = tiku_config[key]
+        if value is None or str(value).strip() == "":
+            continue
+        parts.append(f"{key}={'****' if key in secret_keys else value}")
+    return ", ".join(parts)
+
+
+def build_common_config(args, file_config: dict = None) -> dict:
+    """合并 common 配置: 文件 -> 环境变量 -> 命令行。"""
+    conf: dict[str, Any] = dict(file_config or {})
+
+    for env_key, conf_key in COMMON_ENV_MAP.items():
+        raw = os.environ.get(env_key)
+        if raw is None or not str(raw).strip():
+            continue
+        value = str(raw).strip()
+        if conf_key in ("speed",):
+            try:
+                conf[conf_key] = float(value)
+            except ValueError:
+                logger.warning(f"环境变量 {env_key}={value} 不是数字, 已忽略")
+        elif conf_key in ("jobs",):
+            try:
+                conf[conf_key] = int(value)
+            except ValueError:
+                logger.warning(f"环境变量 {env_key}={value} 不是整数, 已忽略")
+        elif conf_key == "course_list":
+            conf[conf_key] = [item.strip() for item in value.split(",") if item.strip()]
+        elif conf_key in ("use_cookies", "verbose"):
+            conf[conf_key] = str_to_bool(value)
+        else:
+            conf[conf_key] = value
+
+    if args is not None:
+        if args.username:
+            conf["username"] = args.username.strip()
+        if args.password:
+            conf["password"] = args.password.strip()
+        if args.list:
+            conf["course_list"] = [item.strip() for item in args.list.split(",") if item.strip()]
+        if args.speed is not None:
+            conf["speed"] = float(args.speed)
+        if args.jobs is not None:
+            conf["jobs"] = int(args.jobs)
+        if args.notopen_action:
+            conf["notopen_action"] = args.notopen_action
+        if args.use_cookies:
+            conf["use_cookies"] = True
+        if args.verbose:
+            conf["verbose"] = True
+
+    conf.setdefault("use_cookies", False)
+    conf.setdefault("verbose", False)
+    conf.setdefault("notopen_action", "retry")
+    try:
+        conf["speed"] = min(2.0, max(1.0, float(conf.get("speed", 1.0) or 1.0)))
+    except (TypeError, ValueError):
+        conf["speed"] = 1.0
+    try:
+        conf["jobs"] = max(1, int(conf.get("jobs", 4) or 4))
+    except (TypeError, ValueError):
+        conf["jobs"] = 4
+    course_list = conf.get("course_list")
+    if isinstance(course_list, str):
+        conf["course_list"] = [item.strip() for item in course_list.split(",") if item.strip()]
+    return conf
 
 
 def init_config():
     """初始化配置"""
     args = parse_args()
 
+    file_common: dict = {}
+    file_tiku: dict = {}
+    file_notify: dict = {}
     if args.config:
-        common_config, tiku_config, notification_config = load_config_from_file(args.config)
-        if args.verbose:
-            common_config["verbose"] = True
-        return common_config, tiku_config, notification_config
+        file_common, file_tiku, file_notify = load_config_from_file(args.config)
+        logger.info(f"已加载配置文件: {args.config}")
     else:
-        return build_config_from_args(args)
+        logger.info("未指定配置文件, 使用命令行参数/环境变量运行")
+
+    common_config = build_common_config(args, file_common)
+    tiku_config = resolve_tiku_config(file_tiku, args, os.environ)
+    notification_config = {**collect_notification_config_from_env(), **file_notify}
+    return common_config, tiku_config, notification_config
 
 
 
@@ -175,44 +421,81 @@ def init_chaoxing(common_config, tiku_config):
     username = common_config.get("username", "")
     password = common_config.get("password", "")
     use_cookies = common_config.get("use_cookies", False)
-    
-    # 如果没有提供用户名密码，从命令行获取
+
+    # 答案缓存(题库的一部分)位置: 配置里指定后, 缓存文件也能随仓库提交而积累
+    cache_file = str((tiku_config or {}).get("cache_file") or "").strip()
+    if cache_file:
+        CacheDAO.DEFAULT_CACHE_FILE = cache_file
+    logger.info(f"答案缓存文件: {CacheDAO.DEFAULT_CACHE_FILE}")
+
+    # 如果没有提供用户名密码，从命令行获取(非交互环境直接报错, 避免 CI 里挂死)
     if (not username or not password) and not use_cookies:
+        if not sys.stdin.isatty():
+            raise LoginError("缺少账号或密码, 且当前是非交互环境: 请用 -u/-p 参数或 "
+                             "CHAOXING_USERNAME/CHAOXING_PASSWORD 环境变量提供")
         username = input("请输入你的手机号, 按回车确认\n手机号:")
         password = input("请输入你的密码, 按回车确认\n密码:")
-    
+
     account = Account(username, password)
-    
+
     # 设置题库
     tiku = Tiku()
     tiku.config_set(tiku_config)  # 载入配置
     tiku = tiku.get_tiku_from_config()  # 载入题库
+    logger.info(f"题库配置: {describe_tiku_config(tiku_config)}")
     tiku.init_tiku()  # 初始化题库
-    
+    if tiku.DISABLE:
+        logger.warning("题库未启用: 章节检测将只做视频/文档等任务点")
+    else:
+        logger.info(f"题库已启用: {tiku.name}")
+
     # 获取查询延迟设置
-    
+
     # 检查大模型连接（如果使用的是大模型题库）
     # 根据配置文件中的 provider 判断是否为大模型题库
     provider = tiku_config.get('provider', '')
-    provider_list = [name.strip() for name in provider.split(',') if name.strip()]
+    provider_list = [name.strip() for name in str(provider).split(',') if name.strip()]
     if any(name in ['AI', 'SiliconFlow'] for name in provider_list):
-        check_connection = tiku_config.get('check_llm_connection', 'true').lower() == 'true'
+        check_connection = str(tiku_config.get('check_llm_connection', 'true')).lower() == 'true'
         if check_connection:
             logger.info(f'正在验证大模型配置 (provider={provider})...')
             if not tiku.check_llm_connection():
-                logger.error('大模型连接检查失败')
-                choice = input('大模型连接检查失败，无法准确答题，是否继续运行？(Y/n): ').strip().lower()
-                # 直接回车默认继续运行
-                if choice not in ('', 'y', 'yes'):
-                    raise RuntimeError('用户取消运行')
-                logger.info('用户选择继续运行...')
+                if sys.stdin.isatty():
+                    choice = input('大模型连接检查失败，无法准确答题，是否继续运行？(Y/n): ').strip().lower()
+                    # 直接回车默认继续运行
+                    if choice not in ('', 'y', 'yes'):
+                        raise RuntimeError('用户取消运行')
+                    logger.info('用户选择继续运行...')
+                else:
+                    # 非交互(GitHub Actions 等)环境: 不阻塞等待输入, 继续走题库回退链
+                    logger.warning('大模型连接检查失败, 非交互环境将继续运行, 其余题库仍会生效')
 
     query_delay = tiku_config.get("delay", 0)
-    
+    try:
+        query_delay = float(query_delay or 0)
+    except (TypeError, ValueError):
+        query_delay = 0.0
+
     # 实例化超星API
     chaoxing = Chaoxing(account=account, tiku=tiku, query_delay=query_delay)
-    
+
     return chaoxing
+
+
+def export_tiku_bank(tiku_config) -> None:
+    """把本次运行积累的答案缓存合并回本地题库文件(提交回仓库后, 题库会越跑越全)。"""
+    if not str_to_bool(tiku_config.get('export_bank', 'false')):
+        return
+    try:
+        bank_paths = split_paths(tiku_config.get('local_bank')) or [DEFAULT_BANK_PATH]
+        bank = LocalBank(paths=bank_paths)
+        before = bank.load()
+        cache_file = tiku_config.get('cache_file') or CacheDAO.DEFAULT_CACHE_FILE
+        added = bank.import_cache(cache_file)
+        output = bank.save()
+        logger.info(f"题库回写完成: 原 {before} 条, 合并缓存新增 {added} 条, 现共 {len(bank)} 条 -> {output}")
+    except Exception as e:
+        logger.error(f"题库回写失败: {e}")
 
 def process_job(chaoxing: Chaoxing, course: dict, job: dict, job_info: dict, speed: float) -> StudyResult:
     """处理单个任务点"""
@@ -470,6 +753,10 @@ def process_course(chaoxing: Chaoxing, course:dict[str, Any], config: dict):
 def filter_courses(all_course, course_list):
     """过滤要学习的课程"""
     if not course_list:
+        if not sys.stdin.isatty():
+            # 非交互环境(GitHub Actions 等)不能等待输入, 默认学习全部课程
+            logger.warning("未指定课程ID且当前是非交互环境, 将学习全部课程(可在 secrets 里配置 CHAOXING_COURSE_LIST)")
+            return all_course
         # 手动输入要学习的课程ID列表
         print("*" * 10 + "课程列表" + "*" * 10)
         for course in all_course:
@@ -514,6 +801,8 @@ def format_time(num, suffix='', divisor=''):
 
 def main():
     """主程序入口"""
+    tiku_config: dict = {}
+    notification = None
     try:
         # 初始化配置
         common_config, tiku_config, notification_config = init_config()
@@ -561,10 +850,17 @@ def main():
         logger.error(f"错误: {type(e).__name__}: {e}")
         logger.error(traceback.format_exc())
         try:
-            notification.send(f"chaoxing : 出现错误 {type(e).__name__}: {e}\n{traceback.format_exc()}")
+            if notification is not None:
+                notification.send(f"chaoxing : 出现错误 {type(e).__name__}: {e}\n{traceback.format_exc()}")
         except Exception:
             pass  # 如果通知发送失败，忽略异常
         raise e
+    finally:
+        # 即使中途出错, 也把已经搜到的答案落盘/合并进题库, 不浪费这一轮的成果
+        try:
+            export_tiku_bank(tiku_config)
+        except Exception as e:
+            logger.error(f"题库回写异常: {e}")
 
 
 if __name__ == "__main__":

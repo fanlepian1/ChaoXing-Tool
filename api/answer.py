@@ -18,21 +18,30 @@ from urllib3 import disable_warnings, exceptions
 
 from api.answer_check import check_answer
 from api.logger import logger
+from api.tiku_bank import (
+    DEFAULT_BANK_PATH,
+    DEFAULT_CACHE_PATH,
+    LocalBank,
+    answer_to_text,
+    clean_title,
+    split_paths,
+)
 
 # 关闭警告
 disable_warnings(exceptions.InsecureRequestWarning)
 
-__all__ = ["CacheDAO", "Tiku", "TikuFallback", "TikuYanxi", "TikuGo", "TikuLike", "TikuAdapter", "AI", "SiliconFlow"]
+__all__ = ["CacheDAO", "Tiku", "TikuFallback", "TikuYanxi", "TikuGo", "TikuLike", "TikuAdapter", "TikuLocal", "AI",
+           "SiliconFlow"]
 
 class CacheDAO:
     """
     @Author: SocialSisterYi
     @Reference: https://github.com/SocialSisterYi/xuexiaoyi-to-xuexitong-tampermonkey-proxy
     """
-    DEFAULT_CACHE_FILE = "cache.json"
+    DEFAULT_CACHE_FILE = os.environ.get("CHAOXING_CACHE_FILE") or "cache.json"
 
-    def __init__(self, file: str = DEFAULT_CACHE_FILE):
-        self.cache_file = Path(file)
+    def __init__(self, file: Optional[str] = None):
+        self.cache_file = Path(file or os.environ.get("CHAOXING_CACHE_FILE") or self.DEFAULT_CACHE_FILE)
         self._lock = threading.RLock()
         if not self.cache_file.is_file():
             self._write_cache({})
@@ -134,6 +143,10 @@ class CacheDAO:
             self._write_cache(data)
 
 
+# 判断题默认选项表(配置文件未提供时兜底)
+DEFAULT_TRUE_LIST = ['正确', '对', '√', '是', 'true', 't', 'yes', 'y', '1']
+DEFAULT_FALSE_LIST = ['错误', '错', '×', '否', '不对', '不正确', 'false', 'f', 'no', 'n', '0']
+
 # TODO: 重构此部分代码，将此类改为抽象类，加载题库方法改为静态方法，禁止直接初始化此类
 class Tiku:
     CONFIG_PATH = os.path.join(os.getcwd(), "config.ini")  # TODO: 从运行参数中获取config路径
@@ -142,10 +155,11 @@ class Tiku:
     COVER_RATE = 0.8    # 覆盖率
     true_list = []
     false_list = []
-    def __init__(self) -> None:
+    def __init__(self, config_path: Optional[str] = None) -> None:
         self._name = None
         self._api = None
         self._conf = None
+        self._config_path = config_path or self.CONFIG_PATH
 
     @property
     def name(self):
@@ -176,14 +190,32 @@ class Tiku:
         # 尝试根据配置文件设置提交模式
         if not self._conf:
             self.config_set(self._get_conf())
+        if not self._conf:
+            return
         if not self.DISABLE:
-            # 设置提交模式
-            self.SUBMIT = True if self._conf['submit'] == 'true' else False
-            self.COVER_RATE = float(self._conf['cover_rate'])
-            self.true_list = self._conf['true_list'].split(',')
-            self.false_list = self._conf['false_list'].split(',')
+            # 设置提交模式(缺省值兜底: 配置里少写任何一项都不会再抛 KeyError)
+            self.SUBMIT = str(self._conf.get('submit', 'false')).strip().lower() == 'true'
+            try:
+                self.COVER_RATE = float(self._conf.get('cover_rate', 0.9))
+            except (TypeError, ValueError):
+                logger.warning(f'cover_rate 配置无效, 使用默认值 0.9')
+                self.COVER_RATE = 0.9
+            self.true_list = self._parse_option_list(self._conf.get('true_list'), DEFAULT_TRUE_LIST)
+            self.false_list = self._parse_option_list(self._conf.get('false_list'), DEFAULT_FALSE_LIST)
+            # 答案缓存位置(题库的一部分): 让缓存也能随仓库提交而积累
+            cache_file = self._conf.get('cache_file')
+            if cache_file:
+                CacheDAO.DEFAULT_CACHE_FILE = str(cache_file).strip()
             # 调用自定义题库初始化
             self._init_tiku()
+
+    def _parse_option_list(self, raw, default: list) -> list:
+        """把 "正确,对,√" 这样的配置串解析成列表, 为空时用默认值。"""
+        if raw is None:
+            return list(default)
+        items = [item.strip() for item in str(raw).split(',')]
+        items = [item for item in items if item]
+        return items or list(default)
 
     def _init_tiku(self):
         # 仅用于题库初始化, 例如配置token, 交由自定义题库完成
@@ -198,21 +230,25 @@ class Tiku:
         """
         try:
             config = configparser.ConfigParser()
-            config.read(self.CONFIG_PATH, encoding="utf8")
-            return config['tiku']
+            config.read(self._config_path, encoding="utf8")
+            conf = config['tiku']
         except (KeyError, FileNotFoundError):
             logger.info("未找到tiku配置, 已忽略题库功能")
             self.DISABLE = True
             return None
+        self.DISABLE = False
+        return conf
         
     def query(self,q_info:dict) -> Optional[str]:
         if self.DISABLE:
             return None
 
-        # 预处理, 去除【单选题】这样与标题无关的字段
+        # 预处理, 去掉题号/【单选题】/（2.0分）这类与题目无关的字段
+        # 这些都可能导致第三方题库或缓存匹配失败
         logger.debug(f"原始标题：{q_info['title']}")
-        q_info['title'] = sub(r'^\d+', '', q_info['title'])
-        q_info['title'] = sub(r'（\d+\.\d+分）$', '', q_info['title'])
+        cleaned = clean_title(q_info['title'])
+        if cleaned:
+            q_info['title'] = cleaned
         logger.debug(f"处理后标题：{q_info['title']}")
 
         # 先过缓存
@@ -307,15 +343,15 @@ class Tiku:
         if self.DISABLE:
             return False
         # 对响应的答案作处理
-        answer = answer.strip()
-        if answer in self.true_list:
+        answer = str(answer).strip()
+        lowered = answer.lower()
+        # 内置的高频通用判断词规整(题库返回 true/对/√ 等都能识别)
+        if answer in self.true_list or lowered in DEFAULT_TRUE_LIST:
             return True
-        elif answer in self.false_list:
+        if answer in self.false_list or lowered in DEFAULT_FALSE_LIST:
             return False
-        else:
-            # 无法判断, 随机选择
-            logger.error(f'无法判断答案 -> {answer} 对应的是正确还是错误, 请自行判断并加入配置文件重启脚本, 本次将会随机选择选项')
-            return random.choice([True,False])
+        logger.error(f'无法判断答案 -> {answer} 对应的是正确还是错误, 请自行判断并加入配置文件重启脚本, 本次将会随机选择选项')
+        return random.choice([True, False])
 
     def get_submit_params(self):
         """
@@ -1288,11 +1324,173 @@ class SiliconFlow(Tiku):
             return False
 
 
+class TikuLocal(Tiku):
+    """本地题库(自带题库)。
+
+    数据来源有两层, 可以同时使用:
+        1. 仓库内的本地题库文件 ``tiku/bank.json``(可写多个, 英文逗号分隔), 精确/模糊匹配;
+        2. 可选的自建题库接口 ``local_api``, 兼容 TikuAdapter 与常见 ``{question: ...}`` 查询接口。
+
+    这样题库完全属于你自己: 不依赖第三方额度、不会被限流, 每次运行积累的答案还能通过
+    ``main.py --tiku-export-bank`` 回写进本地题库, 越跑越准。
+
+    可用配置项(写在 [tiku] 节或环境变量 CHAOXING_TIKU_XXX):
+        local_bank        本地题库文件, 逗号分隔(默认 tiku/bank.json)
+        local_fuzzy       是否启用模糊匹配(默认 true)
+        local_threshold   模糊匹配阈值 0.5~1.0(默认 0.86)
+        local_api         自建题库接口地址, 留空则只用本地文件
+        local_api_method  请求方式 GET/POST(默认 POST)
+        local_api_timeout 接口超时秒数(默认 8)
+        export_bank       运行结束后是否把答案缓存合并回本地题库(默认 false)
+    """
+
+    def __init__(self, config_path: Optional[str] = None) -> None:
+        super().__init__(config_path)
+        self.name = '本地题库'
+        self.bank: Optional[LocalBank] = None
+        self._api_url = ''
+        self._api_method = 'POST'
+        self._api_timeout = 8.0
+        self._api_failed = False
+
+    # ------------------------------------------------------------ 初始化
+    @staticmethod
+    def _as_bool(value, default: bool = False) -> bool:
+        if value is None:
+            return default
+        return str(value).strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
+
+    def _init_tiku(self):
+        conf = self._conf or {}
+        bank_paths = split_paths(conf.get('local_bank')) or [DEFAULT_BANK_PATH]
+        fuzzy = self._as_bool(conf.get('local_fuzzy'), True)
+        try:
+            threshold = float(conf.get('local_threshold', 0.86))
+        except (TypeError, ValueError):
+            logger.warning(f'{self.name}配置 local_threshold 无效, 使用默认值 0.86')
+            threshold = 0.86
+        try:
+            self._api_timeout = float(conf.get('local_api_timeout', 8))
+        except (TypeError, ValueError):
+            self._api_timeout = 8.0
+
+        self._api_url = str(conf.get('local_api') or '').strip()
+        self._api_method = str(conf.get('local_api_method') or 'POST').strip().upper()
+
+        self.bank = LocalBank(paths=bank_paths, fuzzy=fuzzy, threshold=threshold)
+        count = self.bank.load()
+        if count:
+            logger.info(f"{self.name}已加载 {count} 条题目: {', '.join(bank_paths)}"
+                        f" (模糊匹配={'开' if fuzzy else '关'}, 阈值={threshold})")
+        else:
+            logger.warning(f"{self.name}题库文件为空或不存在: {', '.join(bank_paths)}，"
+                           f"本次仅依赖答案缓存{'与自建接口 ' + self._api_url if self._api_url else ''}")
+        if self._api_url:
+            logger.info(f"{self.name}已启用自建题库接口: {self._api_method} {self._api_url}")
+        if not count and not self._api_url:
+            logger.warning(f"{self.name}没有任何数据来源, 建议把题库导入 {DEFAULT_BANK_PATH} "
+                           f"(可用 scripts/tiku_tool.py import)")
+
+    # ------------------------------------------------------------ 查询
+    def _query(self, q_info: dict) -> Optional[str]:
+        title = str(q_info.get('title') or '')
+        answer = self._lookup_bank(title)
+        if answer:
+            return answer
+        # 有些题库把选项一起作为索引, 再试一次"题干+选项"
+        options = q_info.get('options')
+        if options:
+            answer = self._lookup_bank(f"{title} {options}")
+            if answer:
+                return answer
+        if self._api_url and not self._api_failed:
+            return self._query_api(q_info)
+        return None
+
+    def _lookup_bank(self, question: str) -> Optional[str]:
+        if not self.bank or not question:
+            return None
+        try:
+            answer = self.bank.lookup(question)
+        except Exception as e:
+            logger.error(f'{self.name}本地查询异常: {e}')
+            return None
+        if answer:
+            logger.info(f'{self.name}本地命中: {question[:30]}... -> {answer}')
+        return answer
+
+    def _query_api(self, q_info: dict) -> Optional[str]:
+        q_type = q_info.get('type')
+        type_map = {'single': 0, 'multiple': 1, 'completion': 2, 'judgement': 3}
+        payload = {
+            'question': q_info.get('title', ''),
+            'type': type_map.get(q_type, 4),
+        }
+        options = q_info.get('options')
+        if options:
+            payload['options'] = [sub(r'^[A-Za-z]\.?、?\s?', '', line) for line in str(options).split('\n') if line.strip()]
+        try:
+            if self._api_method == 'GET':
+                res = requests.get(self._api_url, params={'question': q_info.get('title', '')},
+                                   timeout=self._api_timeout, verify=False)
+            else:
+                res = requests.post(self._api_url, json=payload, timeout=self._api_timeout, verify=False)
+        except requests.exceptions.RequestException as e:
+            logger.error(f'{self.name}自建接口请求失败: {e}')
+            return None
+        if res.status_code != 200:
+            logger.error(f'{self.name}自建接口返回异常状态码: {res.status_code}')
+            return None
+        try:
+            payload_json = res.json()
+        except ValueError:
+            logger.error(f'{self.name}自建接口返回非 JSON: {res.text[:200]}')
+            return None
+        answer = self._dig_answer(payload_json)
+        if answer:
+            logger.info(f'{self.name}自建接口命中: {q_info.get("title", "")[:30]}... -> {answer}')
+        return answer
+
+    @classmethod
+    def _dig_answer(cls, node, depth: int = 0) -> Optional[str]:
+        """在任意嵌套的接口响应里挖出答案字段(多答案会完整拼起来)。"""
+        if node is None or depth > 4:
+            return None
+        if isinstance(node, dict):
+            for key in ('bestAnswer', 'answer', '答案', 'data', 'result', 'results', 'selectedOptions',
+                        'answerText', 'correctAnswer', 'content'):
+                if key in node:
+                    got = cls._dig_answer(node[key], depth + 1)
+                    if got:
+                        return got
+            return None
+        if isinstance(node, list):
+            # 多选题接口可能返回 ["A","C"], 需要全部保留(用换行分隔)
+            parts = [p for p in (cls._dig_answer(item, depth + 1) for item in node) if p]
+            return "\n".join(parts) if parts else None
+        if isinstance(node, (int, float)) and node in (0, 1):
+            return None  # 接口里的 code/plat 之类的标志位, 不是答案
+        text = answer_to_text(node)
+        return text if text else None
+
+    # ------------------------------------------------------------ 导出
+    def export_cache_to_bank(self, cache_path: Optional[str] = None, bank_path: Optional[str] = None) -> dict:
+        """把答案缓存合并回本地题库文件。返回 {'added':.., 'entries':.., 'output':..}"""
+        if not self.bank:
+            self.bank = LocalBank(paths=split_paths((self._conf or {}).get('local_bank')) or [DEFAULT_BANK_PATH])
+            self.bank.load()
+        cache_path = cache_path or (self._conf or {}).get('cache_file') or DEFAULT_CACHE_PATH
+        added = self.bank.import_cache(cache_path)
+        output = self.bank.save(bank_path)
+        return {'added': added, 'entries': len(self.bank), 'output': output}
+
+
 PROVIDER_REGISTRY = {
     'TikuYanxi': TikuYanxi,
     'TikuGo': TikuGo,
     'TikuLike': TikuLike,
     'TikuAdapter': TikuAdapter,
+    'TikuLocal': TikuLocal,
     'AI': AI,
     'SiliconFlow': SiliconFlow,
 }

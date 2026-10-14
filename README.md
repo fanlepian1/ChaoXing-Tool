@@ -25,6 +25,99 @@
 
 <a href="https://github.com/Samueli924/chaoxing" target="blank">灵感来源</a>
 
+## 题库接入(GitHub Actions 版)
+
+这个仓库在 Samueli924/chaoxing 的基础上补上了一整套**可自动积累的题库**，并且把配置全部走 secrets，
+不需要把账号密码写进仓库。
+
+### 1. 它解决了什么
+
+* 原本命令行启动(`python main.py -u .. -p .. -l ..`)时题库配置为空，**题库根本不生效**，章节检测只能随机选答案；
+* 现在 `main.py` 支持 `CHAOXING_TIKU_*` 环境变量与 `--tiku-*` 参数，Actions 里直接映射 secrets 即可；
+* 新增自带题库 `TikuLocal`：答案落在仓库内的 `tiku/bank.json`，每轮运行攒到的答案会自动合并回题库并提交回仓库，
+  下一轮直接命中，**不再重复消耗第三方题库额度**；
+* 新增 `auto` 模式：按你配置过的凭据自动组回退链，离线题库永远排在最前面。
+
+### 2. 需要在仓库里配置的 Secrets
+
+`Settings → Secrets and variables → Actions → New repository secret`
+
+| Secret | 说明 | 是否必需 |
+| --- | --- | --- |
+| `CHAOXING_USERNAME` | 学习通手机号 | 必需 |
+| `CHAOXING_PASSWORD` | 学习通密码 | 必需 |
+| `CHAOXING_COURSE_LIST` | 课程ID，英文逗号分隔；留空=全部课程 | 可选 |
+| `CHAOXING_SPEED` / `CHAOXING_JOBS` | 倍速 / 并发章节数 | 可选 |
+| `TIKU_PROVIDER` | 题库提供方，留空默认 `auto` | 可选 |
+| `TIKU_SUBMIT` | `true`=达到覆盖率就提交章节检测；`false`=只保存答案 | 可选(默认 false) |
+| `TIKU_COVER_RATE` | 最低题库覆盖率(默认 0.9) | 可选 |
+| `TIKU_TOKENS` | 言溪题库 / LIKE知识库的 token，逗号分隔 | 有则更准 |
+| `TIKU_URL` | 自建 [tikuAdapter](https://github.com/DokiDoki1103/tikuAdapter) 或自建题库接口地址 | 可选 |
+| `TIKU_LOCAL_API` | 你自己的题库 HTTP 接口 | 可选 |
+| `TIKU_GO_AUTHORIZATION` | GO题解除限流的 Authorization | 可选 |
+| `TIKU_SILICONFLOW_KEY` / `TIKU_SILICONFLOW_MODEL` | 硅基流动大模型答题 | 可选 |
+| `TIKU_ENDPOINT` / `TIKU_KEY` / `TIKU_MODEL` | 任意 OpenAI 兼容接口 | 可选 |
+| `NOTIFY_PROVIDER` / `NOTIFY_URL` / `TG_CHAT_ID` | 跑完推送通知 | 可选 |
+
+`auto` 的回退链顺序(只包含你配置了凭据的题库)：
+
+```
+TikuLocal(仓库内题库) → TikuGo → 言溪 → TikuAdapter → 硅基流动 → AI大模型
+```
+
+### 3. 推荐的第一次运行方式
+
+1. 保持 `TIKU_SUBMIT=false` 跑一轮：题库会把这一轮所有搜到的答案写进 `tiku/cache.json`，并合并进 `tiku/bank.json` 后提交回仓库；
+2. 看 Actions 日志里的「章节检测题库覆盖率」。覆盖率稳定在 0.9 以上后，把 `TIKU_SUBMIT` 改成 `true`，
+   之后的章节检测就会用题库答案自动提交；
+3. 需要解锁的章节必须提交检测，这种课程建议直接开 `TIKU_SUBMIT=true` 并配合题库。
+
+### 4. 维护自己的题库
+
+```bash
+# 导入题库(支持 json / csv / txt，格式自动识别；txt 支持 题目----答案 / 题目$$答案 / 题目<TAB>答案 / csv)
+python scripts/tiku_tool.py import --input 我的题库.json 别人的题库.txt
+
+# 看看现在有多少题、缓存里有多少答案
+python scripts/tiku_tool.py stats
+
+# 自检某道题能不能命中(题库不准时先跑这个)
+python scripts/tiku_tool.py lookup -q "以下哪个是网络层协议？"
+
+# 把答案缓存合并回题库(workflow 每轮结束会自动执行)
+python scripts/tiku_tool.py export
+```
+
+题库文件格式(`tiku/bank.json`)：
+
+```json
+{
+  "题干内容": "A",
+  "带元信息的题干": { "answer": "B", "type": "single", "source": "我的题库" },
+  "多选题干": "A\nB\nC"
+}
+```
+
+题面匹配做了归一化(忽略题号、`【单选题】`标签、`（2.0分）`后缀、标点、全半角、空格等)，
+并且支持相似度模糊匹配(阈值可用 `local_threshold` 调整)，所以不用和题库里的题面一模一样也能命中。
+
+### 5. 本地调试
+
+```bash
+cp config_template.ini config.ini        # 本地用文件配置更顺手
+export CHAOXING_TIKU_PROVIDER=auto       # Windows 用 set / $env:
+python main.py --config config.ini
+```
+
+临时覆盖某个题库参数：
+
+```bash
+python main.py -u 手机号 -p 密码 --tiku-provider TikuLocal,TikuGo --tiku-local-bank tiku/bank.json \
+  --tiku-export-bank --tiku-opt local_threshold=0.9
+```
+
+第一次用 `python main.py --help` 可以看到全部 `--tiku-*` 参数。
+
 ## 赞助
 >如果觉着代码对你有帮助，可以赞赏一下开发者
 

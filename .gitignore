@@ -154,3 +154,7 @@ config*.ini
 .idea/
 .vscode/
 cache.json
+
+# 题库与答案缓存: 需要提交回仓库才能逐轮积累, 因此显式放行 tiku/ 下的文件
+!tiku/bank.json
+!tiku/cache.json

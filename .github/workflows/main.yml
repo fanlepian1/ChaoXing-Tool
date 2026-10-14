@@ -1,33 +1,150 @@
 name: 刷课
- 
-on: 
+
+on:
   push:
     branches: [ main ]
-  #是否开始每天8点定时刷课，若要开启请把下面两行注释去掉
-  #schedule:
-  #  - cron: "0 8 * * *" 
-    
-jobs: 
+    # 题库/缓存的回写提交不触发刷课, 防止 Actions 自己把自己叫起来
+    paths-ignore:
+      - 'tiku/**'
+      - '**.md'
+  # 每天定时刷课(cron 使用 UTC 时间): "0 0 * * *" = 北京时间每天 08:00
+  schedule:
+    - cron: "0 0 * * *"
+  # 也可以在 Actions 页面手动触发, 并临时覆盖题库/提交策略
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: '题库 provider(留空则用 secrets.TIKU_PROVIDER, 未配置时为 auto)'
+        required: false
+        default: ''
+      submit:
+        description: '是否提交章节检测答案 true/false(留空则用 secrets.TIKU_SUBMIT)'
+        required: false
+        default: ''
+      course_list:
+        description: '课程ID, 逗号分隔(留空则用 secrets.CHAOXING_COURSE_LIST, 再留空=全部课程)'
+        required: false
+        default: ''
+
+# 同一分支只跑一个任务, 避免两次运行同时写题库
+concurrency:
+  group: chaoxing-${{ github.ref }}
+  cancel-in-progress: false
+
+# 回写 tiku/ 下的题库与缓存需要写权限
+permissions:
+  contents: write
+
+jobs:
   Start:
-    runs-on: ubuntu-latest # 在最新版本的 Ubuntu 操作系统环境下运行
-    steps: # 要执行的步骤
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      # ---------------- 账号 ----------------
+      CHAOXING_USERNAME: ${{ secrets.CHAOXING_USERNAME }}
+      CHAOXING_PASSWORD: ${{ secrets.CHAOXING_PASSWORD }}
+      CHAOXING_COURSE_LIST: ${{ github.event.inputs.course_list || secrets.CHAOXING_COURSE_LIST }}
+      CHAOXING_SPEED: ${{ secrets.CHAOXING_SPEED }}
+      CHAOXING_JOBS: ${{ secrets.CHAOXING_JOBS }}
+      CHAOXING_NOTOPEN_ACTION: ${{ secrets.CHAOXING_NOTOPEN_ACTION }}
+
+      # ---------------- 题库 ----------------
+      # provider=auto 时按已配置的凭据自动组链: TikuLocal -> TikuGo -> 言溪 -> TikuAdapter -> 硅基流动 -> AI
+      CHAOXING_TIKU_PROVIDER: ${{ github.event.inputs.provider || secrets.TIKU_PROVIDER || 'auto' }}
+      CHAOXING_TIKU_SUBMIT: ${{ github.event.inputs.submit || secrets.TIKU_SUBMIT }}
+      CHAOXING_TIKU_COVER_RATE: ${{ secrets.TIKU_COVER_RATE }}
+      CHAOXING_TIKU_DELAY: ${{ secrets.TIKU_DELAY }}
+      # 言溪题库 / LIKE知识库 token(逗号分隔)
+      CHAOXING_TIKU_TOKENS: ${{ secrets.TIKU_TOKENS }}
+      # TikuAdapter 或自建题库接口地址
+      CHAOXING_TIKU_URL: ${{ secrets.TIKU_URL }}
+      CHAOXING_TIKU_LOCAL_API: ${{ secrets.TIKU_LOCAL_API }}
+      # GO题解除限流的 Authorization(可选)
+      CHAOXING_TIKU_GO_AUTHORIZATION: ${{ secrets.TIKU_GO_AUTHORIZATION }}
+      # 大模型题库(二选一即可)
+      CHAOXING_TIKU_SILICONFLOW_KEY: ${{ secrets.TIKU_SILICONFLOW_KEY }}
+      CHAOXING_TIKU_SILICONFLOW_MODEL: ${{ secrets.TIKU_SILICONFLOW_MODEL }}
+      CHAOXING_TIKU_ENDPOINT: ${{ secrets.TIKU_ENDPOINT }}
+      CHAOXING_TIKU_KEY: ${{ secrets.TIKU_KEY }}
+      CHAOXING_TIKU_MODEL: ${{ secrets.TIKU_MODEL }}
+      # 本地题库与答案缓存: 固定放在 tiku/ 下, 随仓库提交就能逐轮积累
+      CHAOXING_TIKU_LOCAL_BANK: tiku/bank.json
+      CHAOXING_TIKU_CACHE_FILE: tiku/cache.json
+      CHAOXING_TIKU_EXPORT_BANK: 'true'
+
+      # ---------------- 通知(可选) ----------------
+      CHAOXING_NOTIFY_PROVIDER: ${{ secrets.NOTIFY_PROVIDER }}
+      CHAOXING_NOTIFY_URL: ${{ secrets.NOTIFY_URL }}
+      CHAOXING_NOTIFY_TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+
+    steps:
       - name: 拷贝代码
-        uses: actions/checkout@v4  # 用于将github代码仓库的代码拷贝到工作目录中
- 
+        uses: actions/checkout@v4
+
       - name: 设置python环境
-        uses: actions/setup-python@v5 # 用于设置 Python 环境，它允许你指定要在工作环境中使用的 Python 版本 dct
-        
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.13'  # 选择要用的Python版本
- 
+          python-version: '3.13'
+          cache: pip
+
       - name: 安装依赖包
-        run: | # 安装依赖包
-          pip install -r ./requirements.txt 
-          
-      
-      - name: Run main.py
-        env:
-          CHAOXING_USERNAME: ${{ secrets.CHAOXING_USERNAME }}
-          CHAOXING_PASSWORD: ${{ secrets.CHAOXING_PASSWORD }}
-          CHAOXING_COURSE_LIST: ${{ secrets.CHAOXING_COURSE_LIST }}
-        run: python main.py -u "$CHAOXING_USERNAME" -p "$CHAOXING_PASSWORD" -l "$CHAOXING_COURSE_LIST"
+        run: pip install -r ./requirements.txt
+
+      - name: 自检(题库与配置单测)
+        run: python -m unittest discover -s tests -t .
+
+      - name: 从环境变量生成 config.ini
+        run: |
+          python scripts/gen_config.py --template config_template.ini --out config.ini --check
+          python scripts/gen_config.py --template config_template.ini --out config.ini
+
+      - name: 恢复题库缓存(备份手段)
+        uses: actions/cache/restore@v4
+        with:
+          path: tiku/cache.json
+          key: tiku-cache-${{ github.run_id }}
+          restore-keys: |
+            tiku-cache-
+
+      - name: 运行刷课
+        run: python main.py --config config.ini -u "$CHAOXING_USERNAME" -p "$CHAOXING_PASSWORD" -l "$CHAOXING_COURSE_LIST"
+
+      - name: 题库回写(缓存合并进 tiku/bank.json)
+        if: always()
+        run: |
+          mkdir -p tiku
+          [ -f tiku/cache.json ] || echo '{}' > tiku/cache.json
+          python scripts/tiku_tool.py export --cache tiku/cache.json --bank tiku/bank.json
+
+      - name: 把题库/缓存提交回仓库
+        if: always()
+        run: |
+          if [ -z "$(git status --porcelain tiku/)" ]; then
+            echo "题库无变化, 无需提交"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tiku/
+          git commit -m "chore(tiku): 自动回写题库与答案缓存 [skip ci]"
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: 再次保存题库缓存(备份手段)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: tiku/cache.json
+          key: tiku-cache-${{ github.run_id }}
+
+      - name: 上传运行日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaoxing-log-${{ github.run_id }}
+          path: chaoxing.log
+          if-no-files-found: ignore
+
+      - name: 失败时输出日志尾部
+        if: failure()
+        run: tail -n 100 chaoxing.log || true
