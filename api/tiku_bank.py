@@ -493,6 +493,7 @@ class LocalBank:
         self.loaded_files: list[str] = []
         self.issues: list[str] = []  # 加载时发现的问题(坏 JSON / 空答案条目), 供上层提示
         self.failed_paths: set[str] = set()  # 解析失败的文件: 绝不能被 save() 覆盖掉
+        self.last_refusal: Optional[str] = None  # 最近一次 save() 被安全规则拦住的原因
 
     # ------------------------------------------------------------------ load
     def load(self, force: bool = True) -> int:
@@ -708,14 +709,24 @@ class LocalBank:
     def save(self, path: Any = None, indent: int = 2, allow_failed_overwrite: bool = False) -> Optional[str]:
         """保存题库到文件(默认第一个路径), 返回写入的文件路径; 因保护而拒绝写入时返回 None。
 
-        两条安全规则:
+        三条安全规则:
             1. 按归一化后的题面去重(后写入的答案生效), 文件不会越存越乱;
             2. 加载时解析失败的文件**拒绝写入** —— 否则回写会把用户原始题库(可能只是格式读不对)
-               整个覆盖掉。确认要覆盖时显式传 allow_failed_overwrite=True。
+               整个覆盖掉;
+            3. 已有的非 JSON 题库文件(例如用户自己维护的 `题目----答案` 文本)**拒绝写入** ——
+               题库写出永远是 JSON, 静默改写会破坏用户的文件格式。
+        确认要覆盖/转换时显式传 allow_failed_overwrite=True。
         """
         target = Path(path) if path else (self.paths[0] if self.paths else Path(DEFAULT_BANK_PATH))
         with self._lock:
+            self.last_refusal = None
             if str(target) in self.failed_paths and not allow_failed_overwrite:
+                self.last_refusal = f"{target}: 该文件加载时解析失败, 为避免覆盖已跳过写回"
+                return None
+            if target.exists() and target.suffix.lower() not in JSON_SUFFIXES and not allow_failed_overwrite:
+                self.last_refusal = (f"{target}: 非 JSON 题库文件(题库写出格式固定为 JSON), "
+                                     f"为避免改变你的文件格式已跳过写回; "
+                                     f"可先用 tiku_tool.py import 转成 .json 再作为 local_bank")
                 return None
             # 按归一化题面去重: 后出现的条目覆盖同 key 的旧条目(dict 保留首次出现的位置)
             deduped: dict[str, dict] = {}

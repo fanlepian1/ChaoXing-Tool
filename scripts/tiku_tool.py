@@ -147,7 +147,7 @@ def cmd_import(args) -> int:
         return 0
     output = bank.save(args.output or args.bank)
     if output is None:
-        print(f"[tiku_tool] 题库文件解析失败, 为避免覆盖原文件已跳过写回: {args.bank}", file=sys.stderr)
+        print(f"[tiku_tool] 已跳过写回: {bank.last_refusal or args.bank}\n          (想写到别的文件请用 --output x.json)", file=sys.stderr)
         return 1
     print(f"[tiku_tool] 题库已保存: {output} ({before} -> {len(bank)} 条, "
           f"跳过 {total_skipped_lines} 行)")
@@ -165,7 +165,8 @@ def cmd_export(args) -> int:
     before = bank.load()
     for issue in bank.issues:
         print(f"[tiku_tool] 提示: {issue}", file=sys.stderr)
-    result = bank.import_cache(args.cache, overwrite=args.overwrite)
+    # --overwrite 才强制覆盖; 默认交给 "auto": 只补新题 + 更新之前由缓存写进去的条目
+    result = bank.import_cache(args.cache, overwrite=True if args.overwrite else "auto")
     print(f"[tiku_tool] 缓存 {args.cache} 已合并: 新增 {result['added']} 条, "
           f"更新 {result['overwritten']} 条, 跳过 {result['skipped']} 条(题库已有答案, "
           f"用 --overwrite 可强制覆盖)")
@@ -174,7 +175,7 @@ def cmd_export(args) -> int:
         return 0
     output = bank.save(args.output or args.bank)
     if output is None:
-        print(f"[tiku_tool] 题库文件解析失败, 为避免覆盖原文件已跳过写回: {args.bank}", file=sys.stderr)
+        print(f"[tiku_tool] 已跳过写回: {bank.last_refusal or args.bank}\n          (想写到别的文件请用 --output x.json)", file=sys.stderr)
         return 1
     print(f"[tiku_tool] 题库已保存: {output} (共 {len(bank)} 条)")
     return 0
@@ -185,6 +186,34 @@ def cmd_dedupe(args) -> int:
     before = bank.load()
     output = bank.save(args.output or args.bank)
     print(f"[tiku_tool] 去重/规整完成: {before} -> {len(bank)} 条 -> {output}")
+    return 0
+
+
+
+def cmd_cache(args) -> int:
+    """答案缓存维护: 缓存是派生产物, 怀疑被污染时直接清掉重新积累即可。"""
+    path = Path(args.cache)
+    if args.action == "stats":
+        if not path.is_file():
+            print(f"[tiku_tool] 缓存不存在: {path}")
+            return 0
+        try:
+            data = json.loads(path.read_text(encoding="utf-8") or "{}")
+        except (json.JSONDecodeError, OSError):
+            print(f"[tiku_tool] 缓存文件无法解析(可能已损坏): {path}", file=sys.stderr)
+            return 1
+        print(f"[tiku_tool] 缓存 {path}: {len(data) if isinstance(data, dict) else 0} 条答案")
+        return 0
+
+    # clear
+    if not path.is_file():
+        print(f"[tiku_tool] 缓存不存在, 无需清理: {path}")
+        return 0
+    if args.dry_run:
+        print(f"[tiku_tool] dry-run: 会清空 {path}(文件保留, 内容写成 {{}})")
+        return 0
+    path.write_text("{}\n", encoding="utf-8")
+    print(f"[tiku_tool] 缓存已清空: {path}(题库文件不受影响, 下一轮重新积累)")
     return 0
 
 
@@ -232,6 +261,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("dedupe", parents=[common], help="合并重复题目并规整格式")
     p.add_argument("--output", "-o", default=None)
     p.set_defaults(func=cmd_dedupe)
+
+    p = sub.add_parser("cache", parents=[common], help="答案缓存维护(它是派生产物, 可直接清掉重新积累)")
+    p.add_argument("action", choices=["stats", "clear"], help="stats=看条数, clear=清空")
+    p.add_argument("--dry-run", action="store_true")
+    p.set_defaults(func=cmd_cache)
     return parser
 
 

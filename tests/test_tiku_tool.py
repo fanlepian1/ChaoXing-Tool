@@ -166,6 +166,34 @@ class TestCommands(unittest.TestCase):
         data = json.loads(self.bank.read_text(encoding="utf-8"))
         self.assertEqual(data["题目"] if isinstance(data["题目"], str) else data["题目"]["answer"], "B")
 
+    def test_export_auto_corrects_cache_written_answer(self):
+        """回归: 缓存已经洗进题库的答案, 后来搜对了必须能自动纠正(auto 语义)。"""
+        self.bank.write_text(json.dumps({"题目Q": {"answer": "A", "source": "cache:cache.json"}},
+                                        ensure_ascii=False), encoding="utf-8")
+        self.cache.write_text(json.dumps({"题目Q": "B"}, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(tiku_tool.main(["export", "--bank", str(self.bank), "--cache", str(self.cache)]), 0)
+        data = json.loads(self.bank.read_text(encoding="utf-8"))
+        value = data["题目Q"]
+        self.assertEqual(value["answer"] if isinstance(value, dict) else value, "B")
+
+    def test_export_refuses_non_json_bank(self):
+        """回归: 用户自己维护的文本题库不能被静默改写成 JSON。"""
+        original = "[单选题]下列说法正确的是----A\n下列哪个是网络层的协议----B\n"
+        text_bank = self.tmpdir / "myb.txt"
+        text_bank.write_text(original, encoding="utf-8")
+        self.cache.write_text(json.dumps({"新题目X": "C"}, ensure_ascii=False), encoding="utf-8")
+        code = tiku_tool.main(["export", "--bank", str(text_bank), "--cache", str(self.cache)])
+        self.assertEqual(code, 1)
+        self.assertEqual(text_bank.read_text(encoding="utf-8"), original)
+
+    def test_cache_stats_and_clear(self):
+        self.cache.write_text(json.dumps({"题目": "A"}, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(tiku_tool.main(["cache", "--cache", str(self.cache), "stats"]), 0)
+        self.assertEqual(tiku_tool.main(["cache", "--cache", str(self.cache), "clear", "--dry-run"]), 0)
+        self.assertEqual(json.loads(self.cache.read_text(encoding="utf-8")), {"题目": "A"})
+        self.assertEqual(tiku_tool.main(["cache", "--cache", str(self.cache), "clear"]), 0)
+        self.assertEqual(json.loads(self.cache.read_text(encoding="utf-8")), {})
+
     def test_bank_flag_after_subcommand(self):
         # 文档里写的是 `stats --bank xxx`, 解析器必须支持这个顺序
         self.assertEqual(tiku_tool.main(["stats", "--bank", str(self.bank)]), 0)
