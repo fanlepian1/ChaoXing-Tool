@@ -7,9 +7,10 @@ on:
     paths-ignore:
       - 'tiku/**'
       - '**.md'
-  # 每天定时刷课(cron 使用 UTC 时间): "0 0 * * *" = 北京时间每天 08:00
-  schedule:
-    - cron: "0 0 * * *"
+  # 定时刷课: 默认关闭(保持你原来的设置)。要每天自动刷课就把下面两行前面的 # 去掉。
+  # 注意 cron 用的是 UTC: "0 0 * * *" = 北京时间每天 08:00
+  #schedule:
+  #  - cron: "0 0 * * *"
   # 也可以在 Actions 页面手动触发, 并临时覆盖题库/提交策略
   workflow_dispatch:
     inputs:

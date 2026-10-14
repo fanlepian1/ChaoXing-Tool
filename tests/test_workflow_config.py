@@ -160,5 +160,43 @@ class TestWorkflowConfigPath(unittest.TestCase):
         self.assertIn("1、以下哪个是网络层协议？（2.0分）", data)
 
 
+class TestWorkflowFile(unittest.TestCase):
+    """workflow 的静态自检(不依赖 pyyaml, 只做文本断言, 但能挡住最常见的改坏方式)。"""
+
+    def setUp(self):
+        self.path = REPO_ROOT / ".github" / "workflows" / "main.yml"
+        self.text = self.path.read_text(encoding="utf-8")
+
+    def test_referenced_files_exist(self):
+        for rel in ("scripts/gen_config.py", "scripts/tiku_tool.py", "main.py",
+                    "config_template.ini", "requirements.txt", "tiku/bank.json"):
+            self.assertTrue((REPO_ROOT / rel).is_file(), f"{rel} 不存在")
+            self.assertIn(rel, self.text, f"workflow 引用的 {rel} 不在文件里")
+
+    def test_cannot_retrigger_itself(self):
+        # 题库回写会 push, 必须同时满足: 提交信息带 [skip ci] + push 事件忽略 tiku/**
+        self.assertIn("[skip ci]", self.text)
+        self.assertIn("paths-ignore", self.text)
+        self.assertIn("'tiku/**'", self.text)
+
+    def test_cache_save_is_guarded(self):
+        # actions/cache/save 在文件不存在时会直接失败, 所以回写步骤必须先保证文件存在
+        self.assertIn("mkdir -p tiku", self.text)
+        self.assertIn("tiku/cache.json", self.text)
+
+    def test_secrets_are_not_hardcoded(self):
+        """凭据只能来自 secrets 或由 secrets 注入的环境变量, 不能写死。"""
+        for line in self.text.splitlines():
+            if not any(key in line for key in ("CHAOXING_PASSWORD", "CHAOXING_USERNAME", "TIKU_TOKENS", "TIKU_KEY")):
+                continue
+            from_secrets = "secrets." in line
+            from_env = '"$' in line or "${" in line  # shell 展开上一节由 secrets 注入的环境变量
+            self.assertTrue(from_secrets or from_env, f"疑似明文凭据: {line.strip()}")
+
+    def test_bank_writeback_runs_even_on_failure(self):
+        # 中途失败也要把这一轮搜到的答案落盘, 不能白跑
+        self.assertIn("if: always()", self.text)
+
+
 if __name__ == "__main__":
     unittest.main()
