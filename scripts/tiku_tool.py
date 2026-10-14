@@ -90,15 +90,12 @@ def load_input(path: Path, fmt: str = "auto") -> tuple[list[dict] | dict | list,
             return json.loads(raw), 0
         except json.JSONDecodeError as e:
             if is_json_name or fmt == "json":
-                print(f"[tiku_tool] {path} 是 JSON 但解析失败({e}), 已跳过该文件", file=sys.stderr)
-                return [], 0
+                raise InputParseError(f"{path} 是 JSON 但解析失败({e})")
             # 后缀不是 .json: 纯文本题库的第一行经常是 "[单选题]…", 不能整份丢掉
             credible, skipped = parse_bank_text(raw)
             if credible:
                 return credible, skipped
-            print(f"[tiku_tool] {path} 既不是合法 JSON 也解析不出题目, 已跳过(可能文件被截断)",
-                  file=sys.stderr)
-            return [], 0
+            raise InputParseError(f"{path} 既不是合法 JSON 也解析不出题目(可能文件被截断)")
     return parse_bank_text(raw)
 
 
@@ -165,6 +162,10 @@ def _check_output_target(args) -> Optional[str]:
     return None
 
 
+class InputParseError(Exception):
+    """输入题库文件无法解析(而不是"里面没有题目")。"""
+
+
 def cmd_import(args) -> int:
     refusal = _check_output_target(args)
     if refusal:
@@ -173,8 +174,14 @@ def cmd_import(args) -> int:
     bank = LocalBank(paths=args.bank, fuzzy=False, reload_interval=0)
     before = bank.load()
     total_added = total_skipped = total_skipped_lines = 0
+    failed_inputs: list[str] = []
     for item in args.input:
-        payload, skipped_lines = load_input(Path(item), args.format)
+        try:
+            payload, skipped_lines = load_input(Path(item), args.format)
+        except InputParseError as e:
+            print(f"[tiku_tool] 跳过无法解析的输入: {e}", file=sys.stderr)
+            failed_inputs.append(str(item))
+            continue
         total_skipped_lines += skipped_lines
         result = bank.merge(payload, source=Path(item).name)
         total_added += result["added"]
@@ -182,13 +189,17 @@ def cmd_import(args) -> int:
         print(f"[tiku_tool] {item}: 新增 {result['added']} 条, 更新 {result['overwritten']} 条")
     if args.dry_run:
         print(f"[tiku_tool] dry-run: 题库 {before} -> {before + total_added} 条(未写盘)")
-        return 0
+        return 1 if failed_inputs else 0
     output = bank.save(args.output or args.bank)
     if output is None:
         print(f"[tiku_tool] 已跳过写回: {bank.last_refusal or args.bank}\n          (想写到别的文件请用 --output x.json)", file=sys.stderr)
         return 1
     print(f"[tiku_tool] 题库已保存: {output} ({before} -> {len(bank)} 条, "
           f"跳过 {total_skipped_lines} 行)")
+    if failed_inputs:
+        print("[tiku_tool] 有 %d 个输入文件没能解析, 请检查后重试: %s"
+              % (len(failed_inputs), ", ".join(failed_inputs)), file=sys.stderr)
+        return 1
     if args.sync_cache:
         synced = bank.export_to_cache(args.cache)
         if bank.last_refusal:

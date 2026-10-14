@@ -367,23 +367,27 @@ def looks_like_json(text: str) -> bool:
 def looks_like_json_fragment(question: Any) -> bool:
     """判断一条"题目"其实是不是被截断的 JSON 碎片(那种条目绝不能进题库)。
 
-    判定要窄: 只挡"以 { 或 [ 开头 + 带 JSON 冒号/逗号特征"的碎片,
-    否则会把合法题目误杀, 例如:
+    判定要"窄而准": 既要挡住被截断 JSON 切出来的碎片, 又不能误杀合法题面, 例如:
         `["一带一路"]指的是什么倡议`、`字典 {"a": 1} 在 Python 里叫什么`、
         `JSON 里 "key": "value" 的写法对吗`
     """
     text = str(question or "").strip()
     if not text:
         return True
-    if text[0] not in "{[":            # 不以 {/[ 开头的一律是正常题目
+    if text[0] not in "{[":            # 不以 {/[ 开头的一律当正常题目
         return False
     head = text[:80]
     if '":' in head or "':" in head:                       # JSON 键值对特征 {"题干": "答案"
         return True
     if ":" in text[:20] or "：" in text[:20]:              # 无引号的 {题目一: A 特征
         return True
-    # 数组/对象开头 + 引号 + 分隔逗号: ["题干", "答案" 这种碎片
     if re.match(r'^\s*[\[{]\s*["\']', text) and ("," in head or "，" in head):
+        return True                                        # ["题干", "答案" 这种碎片
+    if re.match(r'^\s*[\[{]\s*["\'][^"\']*["\']\s*$', text):
+        return True                                        # ["题目一" 这种只剩一个带引号的括号片段
+    if text[0] == "{" and "}" not in text:
+        return True                                        # 括号不闭合 -> 碎片
+    if text[0] == "[" and "]" not in text:
         return True
     return False
 
@@ -585,7 +589,7 @@ class LocalBank:
         threshold: float = 0.9,
         contain_rate: float = 0.75,
         similarity: bool = False,
-        min_length: int = 8,
+        min_length: int = 5,
         reload_interval: float = 5.0,
     ) -> None:
         self.paths = [Path(p) for p in (split_paths(paths) or [DEFAULT_BANK_PATH])]

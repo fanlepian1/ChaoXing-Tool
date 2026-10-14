@@ -1416,7 +1416,7 @@ class TikuLocal(Tiku):
             logger.warning(f'{self.name}配置 local_contain_rate 无效, 使用默认值 0.75')
             contain_rate = 0.75
         try:
-            min_length = int(conf.get('local_min_length', 8))
+            min_length = int(conf.get('local_min_length', 5))
         except (TypeError, ValueError):
             min_length = 8
         try:

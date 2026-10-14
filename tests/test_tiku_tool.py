@@ -142,7 +142,8 @@ class TestCommands(unittest.TestCase):
         source.write_text('{"下列哪一项属于网络层的协议？": "A", "HTTP 是无状态协议": "正确"',
                           encoding="utf-8")
         code = tiku_tool.main(["import", "--bank", str(self.bank), "--input", str(source)])
-        self.assertEqual(code, 0)  # 不炸, 但什么都没导入
+        # 解析不出来要算失败(不能打印"新增 0 条"糊弄过去), 也不会导入任何垃圾条目
+        self.assertEqual(code, 1)
         if self.bank.exists():
             self.assertEqual(json.loads(self.bank.read_text(encoding="utf-8")), {})
 
