@@ -255,21 +255,26 @@ class Tiku:
         cache_dao = CacheDAO()
         answer = cache_dao.get_cache(q_info['title'])
         if answer:
-            logger.info(f"从缓存中获取答案：{q_info['title']} -> {answer}")
-            return answer.strip()
-        else:
-            answer = self._query(q_info)
-            if answer:
-                answer = answer.strip()
-                logger.info(f"从{self.name}获取答案：{q_info['title']} -> {answer}")
-                if check_answer(answer, q_info['type'], self):
-                    cache_dao.add_cache(q_info['title'], answer)
-                    return answer
-                else:
-                    logger.info(f"从{self.name}获取到的答案类型与题目类型不符，已舍弃")
-                    return None
+            answer = answer.strip()
+            # 缓存里的答案也要过类型校验: 旧版本可能写进了与题型不符的答案(例如判断题里存了选项字母),
+            # 那种答案会直接导致提交失败或错答, 这里丢弃并重新搜题
+            if check_answer(answer, q_info['type'], self):
+                logger.info(f"从缓存中获取答案：{q_info['title']} -> {answer}")
+                return answer
+            logger.warning(f"缓存中的答案与本题类型不符, 已忽略并重新搜题："
+                           f"{q_info['title']} -> {answer}")
+        answer = self._query(q_info)
+        if answer:
+            answer = answer.strip()
+            logger.info(f"从{self.name}获取答案：{q_info['title']} -> {answer}")
+            if check_answer(answer, q_info['type'], self):
+                cache_dao.add_cache(q_info['title'], answer)
+                return answer
+            else:
+                logger.info(f"从{self.name}获取到的答案类型与题目类型不符，已舍弃")
+                return None
 
-            logger.error(f"从{self.name}获取答案失败：{q_info['title']}")
+        logger.error(f"从{self.name}获取答案失败：{q_info['title']}")
         return None
 
 
@@ -1390,6 +1395,8 @@ class TikuLocal(Tiku):
         self.bank = LocalBank(paths=bank_paths, fuzzy=fuzzy, threshold=threshold,
                               contain_rate=contain_rate, similarity=similarity, min_length=min_length)
         count = self.bank.load()
+        for issue in getattr(self.bank, 'issues', []):
+            logger.warning(f"{self.name}题库提示: {issue}")
         if count:
             logger.info(f"{self.name}已加载 {count} 条题目: {', '.join(bank_paths)}"
                         f" (模糊匹配={'开' if fuzzy else '关'}"
@@ -1526,15 +1533,21 @@ class TikuLocal(Tiku):
         return text if text else None
 
     # ------------------------------------------------------------ 导出
-    def export_cache_to_bank(self, cache_path: Optional[str] = None, bank_path: Optional[str] = None) -> dict:
-        """把答案缓存合并回本地题库文件。返回 {'added':.., 'entries':.., 'output':..}"""
+    def export_cache_to_bank(self, cache_path: Optional[str] = None, bank_path: Optional[str] = None,
+                             overwrite: bool = False) -> dict:
+        """把答案缓存合并回本地题库文件。
+
+        默认只补新题(overwrite=False), 保护题库里已经人工核对过的答案。
+        返回 {'added':.., 'overwritten':.., 'skipped':.., 'entries':.., 'output':..}
+        """
         if not self.bank:
             self.bank = LocalBank(paths=split_paths((self._conf or {}).get('local_bank')) or [DEFAULT_BANK_PATH])
             self.bank.load()
         cache_path = cache_path or (self._conf or {}).get('cache_file') or DEFAULT_CACHE_PATH
-        added = self.bank.import_cache(cache_path)
+        result = self.bank.import_cache(cache_path, overwrite=overwrite)
         output = self.bank.save(bank_path)
-        return {'added': added, 'entries': len(self.bank), 'output': output}
+        result['output'] = output
+        return result
 
 
 PROVIDER_REGISTRY = {

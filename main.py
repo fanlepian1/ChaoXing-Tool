@@ -57,6 +57,18 @@ def str_to_bool(value):
     return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def stdin_is_interactive() -> bool:
+    """当前是否处于可交互终端。
+
+    除了常见的 isatty()==False, 还要防 sys.stdin 被彻底关闭(None)的情况 ——
+    Windows 上通过某些调度器/服务方式启动时 stdin 可能是 None, 直接调用会 AttributeError。
+    """
+    try:
+        return sys.stdin is not None and sys.stdin.isatty()
+    except Exception:  # 某些环境 isatty() 本身也会抛异常
+        return False
+
+
 def parse_args():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(
@@ -436,7 +448,7 @@ def init_chaoxing(common_config, tiku_config):
 
     # 如果没有提供用户名密码，从命令行获取(非交互环境直接报错, 避免 CI 里挂死)
     if (not username or not password) and not use_cookies:
-        if not sys.stdin.isatty():
+        if not stdin_is_interactive():
             raise LoginError("缺少账号或密码, 且当前是非交互环境: 请用 -u/-p 参数或 "
                              "CHAOXING_USERNAME/CHAOXING_PASSWORD 环境变量提供")
         username = input("请输入你的手机号, 按回车确认\n手机号:")
@@ -466,7 +478,7 @@ def init_chaoxing(common_config, tiku_config):
         if check_connection:
             logger.info(f'正在验证大模型配置 (provider={provider})...')
             if not tiku.check_llm_connection():
-                if sys.stdin.isatty():
+                if stdin_is_interactive():
                     choice = input('大模型连接检查失败，无法准确答题，是否继续运行？(Y/n): ').strip().lower()
                     # 直接回车默认继续运行
                     if choice not in ('', 'y', 'yes'):
@@ -489,17 +501,23 @@ def init_chaoxing(common_config, tiku_config):
 
 
 def export_tiku_bank(tiku_config) -> None:
-    """把本次运行积累的答案缓存合并回本地题库文件(提交回仓库后, 题库会越跑越全)。"""
+    """把本次运行积累的答案缓存合并回本地题库文件(提交回仓库后, 题库会越跑越全)。
+
+    只补新题, 不覆盖题库里已有的答案 —— 那可能是你人工核对过的。
+    """
     if not str_to_bool(tiku_config.get('export_bank', 'false')):
         return
     try:
         bank_paths = split_paths(tiku_config.get('local_bank')) or [DEFAULT_BANK_PATH]
         bank = LocalBank(paths=bank_paths)
         before = bank.load()
+        for issue in bank.issues:
+            logger.warning(f"题库提示: {issue}")
         cache_file = tiku_config.get('cache_file') or CacheDAO.DEFAULT_CACHE_FILE
-        added = bank.import_cache(cache_file)
+        result = bank.import_cache(cache_file)
         output = bank.save()
-        logger.info(f"题库回写完成: 原 {before} 条, 合并缓存新增 {added} 条, 现共 {len(bank)} 条 -> {output}")
+        logger.info(f"题库回写完成: 原 {before} 条, 新增 {result['added']} 条, "
+                    f"跳过 {result['skipped']} 条(题库已有答案), 现共 {len(bank)} 条 -> {output}")
     except Exception as e:
         logger.error(f"题库回写失败: {e}")
 
@@ -759,7 +777,7 @@ def process_course(chaoxing: Chaoxing, course:dict[str, Any], config: dict):
 def filter_courses(all_course, course_list):
     """过滤要学习的课程"""
     if not course_list:
-        if not sys.stdin.isatty():
+        if not stdin_is_interactive():
             # 非交互环境(GitHub Actions 等)不能等待输入, 默认学习全部课程
             logger.warning("未指定课程ID且当前是非交互环境, 将学习全部课程(可在 secrets 里配置 CHAOXING_COURSE_LIST)")
             return all_course

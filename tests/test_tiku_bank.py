@@ -26,6 +26,33 @@ class TestCompactText(unittest.TestCase):
         raw = "【单选题】3、以下哪个是网络层协议？（2.0分）"
         self.assertEqual(compact_text(raw), "以下哪个是网络层协议")
 
+    def test_various_number_prefixes_are_stripped(self):
+        for raw in ("1、题干内容", "12. 题干内容", "（3）题干内容", "(4) 题干内容",
+                    "5）题干内容", "[6] 题干内容", "【单选题】7、题干内容"):
+            self.assertEqual(compact_text(raw), "题干内容", f"题号没被剥掉: {raw}")
+
+    def test_leading_number_that_is_part_of_question_is_kept(self):
+        """回归: 题号必须带分隔符/括号, 否则 3D/4G/1921年 这种会被削掉首字符, 不同题目撞成同一个 key。"""
+        cases = {
+            "3D打印技术的优势": "3d打印技术的优势",
+            "4D打印技术的优势": "4d打印技术的优势",
+            "4G网络与5G网络的差别": "4g网络与5g网络的差别",
+            "1921年中国共产党成立": "1921年中国共产党成立",
+            "2个字节等于多少位": "2个字节等于多少位",
+            "3.5GHz频段属于什么波": "35ghz频段属于什么波",
+        }
+        for raw, expect in cases.items():
+            self.assertEqual(compact_text(raw), expect)
+        # 最关键的一条: 削完不能撞 key
+        self.assertNotEqual(compact_text("3D打印技术的优势"), compact_text("4D打印技术的优势"))
+
+    def test_brackets_are_only_stripped_when_they_are_labels(self):
+        """回归: [0,1] / (2,3) 这种是题面内容, 不能当题型标签删掉。"""
+        self.assertEqual(compact_text("[0,1]区间上的函数"), "01区间上的函数")
+        self.assertEqual(compact_text("(2,3)区间上的函数"), "23区间上的函数")
+        self.assertEqual(compact_text("（判断题）HTTP是无状态的"), "http是无状态的")
+        self.assertEqual(compact_text("(单选题)以下哪个"), "以下哪个")
+
     def test_unify_fullwidth_and_punctuation(self):
         self.assertEqual(compact_text("ＴＣＰ协议，工作在（）层"), "tcp协议工作在层")
 
@@ -197,10 +224,26 @@ class TestLocalBank(unittest.TestCase):
         cache_path.write_text(json.dumps({"缓存题目": "D"}, ensure_ascii=False), encoding="utf-8")
         bank = LocalBank(paths=[str(self.bank_path)], fuzzy=False)
         bank.load()
-        added = bank.import_cache(cache_path)
-        self.assertEqual(added, 1)
+        result = bank.import_cache(cache_path)
+        self.assertEqual(result["added"], 1)
         self.assertEqual(bank.lookup("缓存题目"), "D")
-        self.assertEqual(bank.import_cache(Path(self.tmp.name) / "missing.json"), 0)
+        self.assertEqual(bank.import_cache(Path(self.tmp.name) / "missing.json")["added"], 0)
+
+    def test_import_cache_does_not_overwrite_curated_answer(self):
+        """题库里人工核对过的答案不该被自动搜到的答案覆盖。"""
+        cache_path = Path(self.tmp.name) / "cache2.json"
+        cache_path.write_text(json.dumps({"1、以下哪个是网络层协议？（2.0分）": "Z"}, ensure_ascii=False),
+                              encoding="utf-8")
+        bank = LocalBank(paths=[str(self.bank_path)], fuzzy=False)
+        bank.load()
+        result = bank.import_cache(cache_path)          # 默认 overwrite=False
+        self.assertEqual(result["skipped"], 1)
+        self.assertEqual(result["overwritten"], 0)
+        self.assertEqual(bank.lookup("以下哪个是网络层协议"), "A")  # 保留原答案
+
+        result = bank.import_cache(cache_path, overwrite=True)
+        self.assertEqual(result["overwritten"], 1)
+        self.assertEqual(bank.lookup("以下哪个是网络层协议"), "Z")
 
     def test_missing_file_is_empty_not_error(self):
         bank = LocalBank(paths=[str(Path(self.tmp.name) / "nope.json")])
@@ -229,7 +272,7 @@ class TestLocalBank(unittest.TestCase):
         cache_bom.write_text(json.dumps({"BOM缓存题目": "F"}, ensure_ascii=False), encoding="utf-8-sig")
         bank = LocalBank(paths=[str(self.bank_path)], fuzzy=False)
         bank.load()
-        self.assertEqual(bank.import_cache(cache_bom), 1)
+        self.assertEqual(bank.import_cache(cache_bom)["added"], 1)
         self.assertEqual(bank.lookup("BOM缓存题目"), "F")
 
     def test_text_bank_file_is_supported(self):
@@ -240,6 +283,35 @@ class TestLocalBank(unittest.TestCase):
         self.assertEqual(bank.load(), 2)
         self.assertEqual(bank.lookup("文本题目一"), "A")
         self.assertEqual(bank.lookup("文本题目二"), "对")
+
+    def test_malformed_json_is_skipped_not_text_parsed(self):
+        """回归: 被截断的 JSON 绝不能退化成文本解析 —— 那会把 JSON 片段当题目/答案,
+        造出的垃圾条目还能模糊命中真题, 于是把一坨 JSON 当答案提交。"""
+        broken = Path(self.tmp.name) / "broken.json"
+        broken.write_text('{"下列哪一项属于网络层的协议？": "A", "HTTP 是无状态协议": "正确"',
+                          encoding="utf-8")
+        bank = LocalBank(paths=[str(broken)], fuzzy=True, similarity=True, threshold=0.6)
+        self.assertEqual(bank.load(), 0)
+        self.assertIsNone(bank.lookup("下列哪一项属于网络层的协议？"))
+        self.assertTrue(any("json" in issue.lower() for issue in bank.issues),
+                        f"应当提示 JSON 损坏: {bank.issues}")
+
+    def test_broken_json_does_not_break_other_files(self):
+        good = Path(self.tmp.name) / "good.json"
+        good.write_text(json.dumps({"好题目": "A"}, ensure_ascii=False), encoding="utf-8")
+        broken = Path(self.tmp.name) / "broken2.json"
+        broken.write_text('{"半截": "A"', encoding="utf-8")
+        bank = LocalBank(paths=[str(broken), str(good)], fuzzy=False)
+        self.assertEqual(bank.load(), 1)
+        self.assertEqual(bank.lookup("好题目"), "A")
+
+    def test_empty_answer_entries_are_reported(self):
+        data = Path(self.tmp.name) / "partial.json"
+        data.write_text(json.dumps({"有答案的题": "A", "没答案的题": None, "空字符串答案": ""},
+                                   ensure_ascii=False), encoding="utf-8")
+        bank = LocalBank(paths=[str(data)], fuzzy=False)
+        self.assertEqual(bank.load(), 1)
+        self.assertTrue(any("答案为空" in issue for issue in bank.issues), bank.issues)
 
 
 class TestHelpers(unittest.TestCase):

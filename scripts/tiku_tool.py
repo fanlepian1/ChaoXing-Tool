@@ -94,6 +94,8 @@ def cmd_lookup(args) -> int:
     bank = LocalBank(paths=args.bank, fuzzy=not args.no_fuzzy, threshold=args.threshold,
                      contain_rate=args.contain_rate, similarity=args.similarity, reload_interval=0)
     count = bank.load()
+    for issue in bank.issues:
+        print(f"[tiku_tool] 提示: {issue}", file=sys.stderr)
     print(f"[tiku_tool] 已加载 {count} 条题目")
     if not count:
         return 1
@@ -104,7 +106,14 @@ def cmd_lookup(args) -> int:
         return 0
     print(f"未命中: {key[:60]}{'...' if len(key) > 60 else ''}")
     if args.add:
-        answer_input = input("请手动输入该题答案(留空放弃): ").strip()
+        if not sys.stdin or not sys.stdin.isatty():
+            print("[tiku_tool] 非交互环境无法交互补录, 请用 import 维护题库", file=sys.stderr)
+            return 1
+        try:
+            answer_input = input("请手动输入该题答案(留空放弃): ").strip()
+        except EOFError:
+            print("[tiku_tool] 输入已结束, 放弃补录", file=sys.stderr)
+            return 1
         if answer_input:
             bank.add(args.question, answer_input, source="manual")
             bank.save()
@@ -116,19 +125,20 @@ def cmd_lookup(args) -> int:
 def cmd_import(args) -> int:
     bank = LocalBank(paths=args.bank, fuzzy=False, reload_interval=0)
     before = bank.load()
-    total_added = 0
-    total_skipped = 0
+    total_added = total_skipped = total_skipped_lines = 0
     for item in args.input:
-        payload, skipped = load_input(Path(item), args.format)
-        total_skipped += skipped
-        added = bank.merge(payload, source=Path(item).name)
-        total_added += added
-        print(f"[tiku_tool] {item}: 新增 {added} 条")
+        payload, skipped_lines = load_input(Path(item), args.format)
+        total_skipped_lines += skipped_lines
+        result = bank.merge(payload, source=Path(item).name)
+        total_added += result["added"]
+        total_skipped += result["skipped"]
+        print(f"[tiku_tool] {item}: 新增 {result['added']} 条, 更新 {result['overwritten']} 条")
     if args.dry_run:
         print(f"[tiku_tool] dry-run: 题库 {before} -> {before + total_added} 条(未写盘)")
         return 0
     output = bank.save(args.output or args.bank)
-    print(f"[tiku_tool] 题库已保存: {output} ({before} -> {len(bank)} 条, 跳过 {total_skipped} 行)")
+    print(f"[tiku_tool] 题库已保存: {output} ({before} -> {len(bank)} 条, "
+          f"跳过 {total_skipped_lines} 行)")
     return 0
 
 
@@ -141,8 +151,12 @@ def cmd_merge(args) -> int:
 def cmd_export(args) -> int:
     bank = LocalBank(paths=args.bank, fuzzy=False, reload_interval=0)
     before = bank.load()
-    added = bank.import_cache(args.cache)
-    print(f"[tiku_tool] 缓存 {args.cache} 已合并: 新增 {added} 条 (原 {before} 条)")
+    for issue in bank.issues:
+        print(f"[tiku_tool] 提示: {issue}", file=sys.stderr)
+    result = bank.import_cache(args.cache, overwrite=args.overwrite)
+    print(f"[tiku_tool] 缓存 {args.cache} 已合并: 新增 {result['added']} 条, "
+          f"更新 {result['overwritten']} 条, 跳过 {result['skipped']} 条(题库已有答案, "
+          f"用 --overwrite 可强制覆盖)")
     if args.dry_run:
         print(f"[tiku_tool] dry-run: 未写盘, 合并后应为 {len(bank)} 条")
         return 0
@@ -194,6 +208,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("export", parents=[common], help="把答案缓存合并回题库")
     p.add_argument("--output", "-o", default=None, help="输出题库文件(默认覆盖 --bank)")
+    p.add_argument("--overwrite", action="store_true",
+                   help="用缓存覆盖题库里已有的答案(默认只补新题, 保护人工核对过的答案)")
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(func=cmd_export)
 

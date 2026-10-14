@@ -304,6 +304,23 @@ class TestFallbackChain(TikuTestCase):
         self.assertEqual(stub._queried, 0)
 
 
+class TestCacheValidation(TikuTestCase):
+    def test_cache_entry_with_wrong_type_is_ignored(self):
+        """回归: 缓存命中也要过类型校验, 否则旧版本写坏的类型不符答案会被一直返回。"""
+        self.write_bank({"判断题干": "正确"})
+        self.cache_path.write_text(json.dumps({"判断题干": "A"}, ensure_ascii=False), encoding="utf-8")
+        tiku = build_tiku(self.base_conf())
+        answer = tiku.query({"title": "判断题干", "type": "judgement", "options": "A. 正确\nB. 错误"})
+        # 缓存里的 "A" 与判断题类型不符 -> 丢弃并重新搜题, 拿到题库里的 "正确"
+        self.assertEqual(answer, "正确")
+
+    def test_cache_hit_still_wins_when_type_matches(self):
+        self.write_bank({"题目X": "A"})
+        self.cache_path.write_text(json.dumps({"题目X": "甲"}, ensure_ascii=False), encoding="utf-8")
+        tiku = build_tiku(self.base_conf())
+        self.assertEqual(tiku.query({"title": "题目X", "type": "single", "options": "A. 甲\nB. 乙"}), "甲")
+
+
 class TestBankExport(TikuTestCase):
     def test_export_cache_to_bank(self):
         self.write_bank({"已有题目": "A"})
