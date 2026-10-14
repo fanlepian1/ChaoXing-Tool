@@ -1364,11 +1364,21 @@ class TikuLocal(Tiku):
         conf = self._conf or {}
         bank_paths = split_paths(conf.get('local_bank')) or [DEFAULT_BANK_PATH]
         fuzzy = self._as_bool(conf.get('local_fuzzy'), True)
+        similarity = self._as_bool(conf.get('local_similarity'), False)
         try:
-            threshold = float(conf.get('local_threshold', 0.86))
+            threshold = float(conf.get('local_threshold', 0.9))
         except (TypeError, ValueError):
-            logger.warning(f'{self.name}配置 local_threshold 无效, 使用默认值 0.86')
-            threshold = 0.86
+            logger.warning(f'{self.name}配置 local_threshold 无效, 使用默认值 0.9')
+            threshold = 0.9
+        try:
+            contain_rate = float(conf.get('local_contain_rate', 0.75))
+        except (TypeError, ValueError):
+            logger.warning(f'{self.name}配置 local_contain_rate 无效, 使用默认值 0.75')
+            contain_rate = 0.75
+        try:
+            min_length = int(conf.get('local_min_length', 8))
+        except (TypeError, ValueError):
+            min_length = 8
         try:
             self._api_timeout = float(conf.get('local_api_timeout', 8))
         except (TypeError, ValueError):
@@ -1377,11 +1387,14 @@ class TikuLocal(Tiku):
         self._api_url = str(conf.get('local_api') or '').strip()
         self._api_method = str(conf.get('local_api_method') or 'POST').strip().upper()
 
-        self.bank = LocalBank(paths=bank_paths, fuzzy=fuzzy, threshold=threshold)
+        self.bank = LocalBank(paths=bank_paths, fuzzy=fuzzy, threshold=threshold,
+                              contain_rate=contain_rate, similarity=similarity, min_length=min_length)
         count = self.bank.load()
         if count:
             logger.info(f"{self.name}已加载 {count} 条题目: {', '.join(bank_paths)}"
-                        f" (模糊匹配={'开' if fuzzy else '关'}, 阈值={threshold})")
+                        f" (模糊匹配={'开' if fuzzy else '关'}"
+                        f"{', 相似度兜底=开, 阈值=' + str(threshold) if similarity else ''}"
+                        f", 包含比例={contain_rate})")
         else:
             logger.warning(f"{self.name}题库文件为空或不存在: {', '.join(bank_paths)}，"
                            f"本次仅依赖答案缓存{'与自建接口 ' + self._api_url if self._api_url else ''}")

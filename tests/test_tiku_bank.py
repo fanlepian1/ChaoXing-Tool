@@ -112,11 +112,65 @@ class TestLocalBank(unittest.TestCase):
         self.assertEqual(bank.lookup("TCP协议工作在OSI模型的哪一层"), "B")
         self.assertEqual(bank.lookup("HTTP是无状态协议"), "正确")
 
-    def test_fuzzy_lookup(self):
-        bank = LocalBank(paths=[str(self.bank_path)], fuzzy=True, threshold=0.8)
+    def test_fuzzy_lookup_by_containment(self):
+        """题库题面比卷面多几个字(例如多了后缀说明文字), 应当命中。"""
+        data = Path(self.tmp.name) / "contain.json"
+        data.write_text(json.dumps({"以下哪个是网络层协议（请选择）": "A"}, ensure_ascii=False),
+                        encoding="utf-8")
+        bank = LocalBank(paths=[str(data)], fuzzy=True, contain_rate=0.75)
         bank.load()
-        # 题面有细微差异(多了一个字)时靠相似度兜底
-        self.assertEqual(bank.lookup("以下哪一个属于网络层协议"), "A")
+        self.assertEqual(bank.lookup("以下哪个是网络层协议"), "A")
+
+    def test_containment_needs_enough_overlap(self):
+        """卷面比题库短太多时不做包含匹配(可能是完全不同的题)。"""
+        bank = LocalBank(paths=[str(self.bank_path)], fuzzy=True, contain_rate=0.75)
+        bank.load()
+        self.assertIsNone(bank.lookup("下列选项中以下哪个是网络层协议"))  # 重叠率只有 0.62
+
+    def test_similar_but_different_question_is_not_answered(self):
+        """安全底线: 仅差一两个字的**不同题目**绝不能命中, 否则会静默提交错答案。"""
+        other = Path(self.tmp.name) / "confusing.json"
+        other.write_text(json.dumps({
+            "下列关于计算机病毒的说法中正确的是": "B",
+            "世界上最大的洋是什么": "A",
+        }, ensure_ascii=False), encoding="utf-8")
+        bank = LocalBank(paths=[str(other)], fuzzy=True, similarity=True, threshold=0.9)
+        bank.load()
+        self.assertIsNone(bank.lookup("下列关于计算机病毒的说法中错误的是"))
+        self.assertIsNone(bank.lookup("世界上最大的洲是什么"))
+
+    def test_short_question_requires_exact_match(self):
+        bank = LocalBank(paths=[str(self.bank_path)], fuzzy=True, min_length=8)
+        bank.load()
+        # 归一化后只有 6 个字的题目不做模糊匹配
+        self.assertIsNone(bank.lookup("网络层协议是哪个"))
+        small = Path(self.tmp.name) / "short.json"
+        small.write_text(json.dumps({"TCP协议": "C"}, ensure_ascii=False), encoding="utf-8")
+        tiny = LocalBank(paths=[str(small)], fuzzy=True, min_length=8)
+        tiny.load()
+        self.assertIsNone(tiny.lookup("UDP协议"))
+        self.assertEqual(tiny.lookup("TCP协议"), "C")  # 精确仍然可以
+
+    def test_similarity_mode_is_opt_in(self):
+        data = Path(self.tmp.name) / "sim.json"
+        data.write_text(json.dumps({"以下哪个是网络层协议": "A"}, ensure_ascii=False), encoding="utf-8")
+        query = "以下哪一个属于网络层协议"
+        strict = LocalBank(paths=[str(data)], fuzzy=True, similarity=False)
+        strict.load()
+        self.assertIsNone(strict.lookup(query))  # 默认不做相似度匹配
+        loose = LocalBank(paths=[str(data)], fuzzy=True, similarity=True, threshold=0.7)
+        loose.load()
+        self.assertEqual(loose.lookup(query), "A")
+
+    def test_ambiguous_candidates_are_rejected(self):
+        """两个候选分数接近且答案不同 -> 放弃, 而不是赌一个。"""
+        first = {"answer": "A", "key": "题目一"}
+        second = {"answer": "B", "key": "题目二"}
+        same_answer = {"answer": "A", "key": "题目三"}
+        self.assertIsNone(LocalBank._pick_best([(0.95, first), (0.94, second)]))
+        self.assertEqual(LocalBank._pick_best([(0.95, first), (0.80, second)]), "A")
+        self.assertEqual(LocalBank._pick_best([(0.95, first), (0.94, same_answer)]), "A")
+        self.assertIsNone(LocalBank._pick_best([]))
 
     def test_miss(self):
         bank = LocalBank(paths=[str(self.bank_path)])

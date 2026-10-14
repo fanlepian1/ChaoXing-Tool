@@ -366,21 +366,41 @@ def split_paths(value: Any) -> list[str]:
 
 
 class LocalBank:
-    """本地题库: 多文件加载 + 精确/模糊匹配 + 可写回。"""
+    """本地题库: 多文件加载 + 精确/模糊匹配 + 可写回。
+
+    匹配策略(逐级放开, 但**默认不会给出错答案**):
+        1. 精确匹配: 归一化后完全一致 —— 覆盖题号/标签/分值/标点/全半角/空白差异;
+        2. 包含匹配(fuzzy): 归一化后一方完整包含另一方, 且长度比例 >= contain_rate。
+           只允许"多几个字/少几个字"的差异(例如题库题面比卷面多了"下列哪一项"),
+           不允许中间替换 —— 因为"世界上最大的洋/洲"这类仅差一字的不同题目
+           必须判为不命中, 否则会提交错误答案;
+        3. 相似度匹配(similarity, 默认关闭): difflib 比率 >= threshold 且带歧义保护。
+           开启后对截断严重的 OCR 题面更友好, 但存在"仅差一两字的不同题目"误配风险,
+           需要用户自己权衡。
+    """
 
     def __init__(
         self,
         paths: Any = None,
         fuzzy: bool = True,
-        threshold: float = 0.86,
+        threshold: float = 0.9,
+        contain_rate: float = 0.75,
+        similarity: bool = False,
+        min_length: int = 8,
         reload_interval: float = 5.0,
     ) -> None:
         self.paths = [Path(p) for p in (split_paths(paths) or [DEFAULT_BANK_PATH])]
         self.fuzzy = bool(fuzzy)
+        self.similarity = bool(similarity)
+        self.min_length = max(1, int(min_length or 1))
         try:
             self.threshold = min(1.0, max(0.5, float(threshold)))
         except (TypeError, ValueError):
-            self.threshold = 0.86
+            self.threshold = 0.9
+        try:
+            self.contain_rate = min(1.0, max(0.5, float(contain_rate)))
+        except (TypeError, ValueError):
+            self.contain_rate = 0.75
         self.reload_interval = max(0.0, float(reload_interval or 0))
 
         self._lock = threading.RLock()
@@ -435,7 +455,7 @@ class LocalBank:
 
     # --------------------------------------------------------------- lookup
     def lookup(self, question: Any, qtype: Optional[str] = None) -> Optional[str]:
-        """查询答案。先精确匹配, 再(可选)模糊匹配。"""
+        """查询答案: 精确 -> 包含式模糊 -> (可选)相似度兜底。"""
         key = compact_text(question)
         if not key:
             return None
@@ -444,34 +464,73 @@ class LocalBank:
             entry = self._exact.get(key)
             if entry:
                 return entry["answer"]
-            if not self.fuzzy:
+            if not self.fuzzy or len(key) < self.min_length:
+                # 过短的题目只允许精确命中: 一字之差就可能是完全不同的题
                 return None
-            best = self._fuzzy_match(key, qtype)
-            return best["answer"] if best else None
 
-    def _fuzzy_match(self, key: str, qtype: Optional[str] = None) -> Optional[dict]:
-        best: Optional[dict] = None
-        best_score = 0.0
+            candidates: list[tuple[float, dict]] = []
+            for entry in self._entries:
+                other = entry["key"]
+                if not other or len(other) < self.min_length:
+                    continue
+                score = self._contain_score(key, other)
+                if score is None and self.similarity:
+                    score = self._similarity_score(key, other, qtype)
+                if score is not None:
+                    candidates.append((score, entry))
+            return self._pick_best(candidates)
+
+    def _contain_score(self, key: str, other: str) -> Optional[float]:
+        """一方完整包含另一方时给分(只容忍多字/少字, 不容忍中间替换)。"""
+        if key == other:
+            return 1.0
+        if key in other:
+            shorter, longer = len(key), len(other)
+        elif other in key:
+            shorter, longer = len(other), len(key)
+        else:
+            return None
+        rate = shorter / longer
+        if rate < self.contain_rate:
+            return None
+        return 0.9 + 0.1 * rate  # 0.9 ~ 1.0, 越接近完全一致分越高
+
+    def _similarity_score(self, key: str, other: str, qtype: Optional[str]) -> Optional[float]:
+        """difflib 相似度(默认关闭): 需要用户显式接受"仅差几个字"的误配风险。"""
         max_len_gap = max(6, int(len(key) * 0.3))
-        want_type = str(qtype).strip() if qtype else None
-        for entry in self._entries:
-            other = entry["key"]
-            if not other:
-                continue
-            if abs(len(other) - len(key)) > max_len_gap:
-                continue
-            quick = SequenceMatcher(None, key, other).quick_ratio()
-            if quick < self.threshold:
-                continue
-            score = SequenceMatcher(None, key, other).ratio()
-            if want_type and entry.get("type") == want_type:
-                score += 0.02  # 题型一致的轻微加权
-            if score > best_score:
-                best_score = score
-                best = entry
-        if best is not None and best_score >= self.threshold:
-            return best
-        return None
+        if abs(len(other) - len(key)) > max_len_gap:
+            return None
+        matcher = SequenceMatcher(None, key, other)
+        if matcher.quick_ratio() < self.threshold:
+            return None
+        score = matcher.ratio()
+        if score < self.threshold:
+            return None
+        # 安全规则: 只差一两个字的题目, 与"另一道题(正确/错误、属于/不属于 这类否定变体)"无法区分,
+        # 一律判为不命中 —— 提交错误答案比不命中更糟。
+        edits = sum(max(i2 - i1, j2 - j1)
+                    for tag, i1, i2, j1, j2 in matcher.get_opcodes() if tag != "equal")
+        if edits <= 2:
+            return None
+        if qtype and self._type_of(other) == str(qtype).strip():
+            score += 0.02  # 题型一致的轻微加权
+        return score
+
+    def _type_of(self, key: str) -> Optional[str]:
+        entry = self._exact.get(key)
+        return entry.get("type") if entry else None
+
+    @staticmethod
+    def _pick_best(candidates: list[tuple[float, dict]]) -> Optional[str]:
+        """挑最优候选; 若两个不同答案的候选分数接近, 说明无法确定, 宁可放弃。"""
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        best_score, best_entry = candidates[0]
+        for score, entry in candidates[1:]:
+            if entry["answer"] != best_entry["answer"] and score >= best_score - 0.03:
+                return None
+        return best_entry["answer"]
 
     # ----------------------------------------------------------------- write
     def add(self, question: Any, answer: Any, qtype: Any = None, source: Optional[str] = None) -> bool:
@@ -565,7 +624,7 @@ class LocalBank:
             }
 
 
-def merge_bank_files(inputs: Iterable[str | Path], output: str | Path, threshold: float = 0.86) -> dict:
+def merge_bank_files(inputs: Iterable[str | Path], output: str | Path, threshold: float = 0.9) -> dict:
     """把多个题库文件合并进一个题库文件(后加载的覆盖先加载的)。"""
     bank = LocalBank(paths=[str(p) for p in inputs], fuzzy=False, threshold=threshold, reload_interval=0)
     bank.load()

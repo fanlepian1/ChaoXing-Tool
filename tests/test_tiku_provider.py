@@ -200,12 +200,22 @@ class TestTikuLocalQuery(TikuTestCase):
         self.assertEqual(tiku.false_list, DEFAULT_FALSE_LIST)
         self.assertEqual(tiku.query({"title": "题干", "type": "single", "options": "A. 甲\nB. 乙"}), "A")
 
-    def test_fuzzy_match_on_slightly_different_title(self):
-        self.write_bank({"以下哪个是网络层协议": "A"})
-        tiku = build_tiku(self.base_conf(local_threshold="0.8"))
+    def test_fuzzy_match_on_longer_bank_title(self):
+        """题库题面比卷面多几个字(常见: 题库里带了"下列哪一项"), 靠包含式匹配命中。"""
+        self.write_bank({"下列哪一项中以下哪个是网络层协议": "A"})
+        tiku = build_tiku(self.base_conf(local_contain_rate="0.6"))
         self.assertEqual(
-            tiku.query({"title": "以下哪一个属于网络层协议", "type": "single", "options": "A. IP\nB. 应用"}),
+            tiku.query({"title": "以下哪个是网络层协议", "type": "single", "options": "A. IP\nB. 应用"}),
             "A",
+        )
+
+    def test_one_char_different_question_is_not_answered(self):
+        """性能底线: 只差一个字的不同题目必须判为未命中(否则会提交错误答案)。"""
+        self.write_bank({"下列关于计算机病毒的说法中正确的是": "B"})
+        tiku = build_tiku(self.base_conf(local_similarity="true", local_threshold="0.9"))
+        self.assertIsNone(
+            tiku.query({"title": "下列关于计算机病毒的说法中错误的是", "type": "single",
+                        "options": "A. 甲\nB. 乙"})
         )
 
     def test_missing_bank_file_keeps_provider_alive(self):

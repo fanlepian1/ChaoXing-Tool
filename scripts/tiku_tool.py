@@ -91,7 +91,8 @@ def cmd_stats(args) -> int:
 
 
 def cmd_lookup(args) -> int:
-    bank = LocalBank(paths=args.bank, fuzzy=not args.no_fuzzy, threshold=args.threshold, reload_interval=0)
+    bank = LocalBank(paths=args.bank, fuzzy=not args.no_fuzzy, threshold=args.threshold,
+                     contain_rate=args.contain_rate, similarity=args.similarity, reload_interval=0)
     count = bank.load()
     print(f"[tiku_tool] 已加载 {count} 条题目")
     if not count:
@@ -172,7 +173,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("lookup", parents=[common], help="查询一道题能否命中")
     p.add_argument("--question", "-q", required=True, help="题目内容")
-    p.add_argument("--threshold", type=float, default=0.86, help="模糊匹配阈值")
+    p.add_argument("--threshold", type=float, default=0.9, help="相似度兜底的阈值(--similarity 生效时)")
+    p.add_argument("--contain-rate", type=float, default=0.75, help="包含式模糊匹配要求的最小长度比例")
+    p.add_argument("--similarity", action="store_true",
+                   help="启用相似度兜底(能命中截断题面, 但可能误配仅差一两字的不同题目)")
     p.add_argument("--no-fuzzy", action="store_true", help="只用精确匹配")
     p.add_argument("--add", action="store_true", help="未命中时交互式补录答案")
     p.set_defaults(func=cmd_lookup)
