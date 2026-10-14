@@ -29,8 +29,13 @@ class TestCompactText(unittest.TestCase):
 
     def test_various_number_prefixes_are_stripped(self):
         for raw in ("1、题干内容", "12. 题干内容", "（3）题干内容", "(4) 题干内容",
-                    "5）题干内容", "[6] 题干内容", "【单选题】7、题干内容"):
+                    "5）题干内容", "[6] 题干内容", "【单选题】7、题干内容",
+                    "第3题 题干内容", "3.5 题干内容", "3.5.1 题干内容",
+                    "（多项选择题）题干内容"):
             self.assertEqual(compact_text(raw), "题干内容", f"题号没被剥掉: {raw}")
+        # 反向保护: 后面直接接字母数字的小数是题面内容, 不能当编号剥掉
+        self.assertEqual(compact_text("3.5GHz频段属于什么波"), "35ghz频段属于什么波")
+        self.assertEqual(compact_text("1921.7.1 发生了什么"), "192171发生了什么")
 
     def test_leading_number_that_is_part_of_question_is_kept(self):
         """回归: 题号必须带分隔符/括号, 否则 3D/4G/1921年 这种会被削掉首字符, 不同题目撞成同一个 key。"""
