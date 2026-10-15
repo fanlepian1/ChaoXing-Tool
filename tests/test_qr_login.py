@@ -236,6 +236,51 @@ class TestScanStateStrings(QRTestCase):
         self.assertEqual(qr.wait_for_scan(5, False, False, False), 1)
 
 
+class TestProactiveRefresh(QRTestCase):
+    """关键修复: 不能等服务器说失效才换码(那时用户手里的码已经废了), 要提前主动换。"""
+
+    def test_refreshes_before_expiry(self):
+        server = self._serve([{"status": False, "type": "3"}] * 40)
+        calls = []
+
+        def refresh():
+            calls.append(1)
+            return "U-NEW", "E-NEW"
+
+        ok, _ = qr.poll_loop(qr.make_session(), "U", "E", timeout=14, on_refresh=refresh,
+                             max_refresh=8, refresh_every=2)
+        self.assertFalse(ok)
+        self.assertGreaterEqual(len(calls), 2, "到点必须主动换码")
+        server.shutdown()
+
+    def test_banner_has_index_and_link(self):
+        summary = pathlib.Path(self.tmp.name) / "summary.md"
+        os.environ["GITHUB_STEP_SUMMARY"] = str(summary)
+        self.addCleanup(lambda: os.environ.pop("GITHUB_STEP_SUMMARY", None))
+        qr.print_qr_banner("https://example.invalid/qr.png", pathlib.Path("qr.png"), 3, 75)
+        text = summary.read_text(encoding="utf-8")
+        self.assertIn("第 3 张二维码", text)
+        self.assertIn("![二维码](https://example.invalid/qr.png)", text)
+
+    def test_banner_without_upload_still_prints(self):
+        os.environ.pop("GITHUB_STEP_SUMMARY", None)
+        qr.print_qr_banner("", pathlib.Path("qr.png"), 2, 75)   # 不应抛异常
+
+    def test_max_refresh_stops(self):
+        """换太多次要停下来(避免被风控), 且返回失败。"""
+        self._serve([{"status": False, "type": "3"}] * 60)
+        calls = []
+
+        def refresh():
+            calls.append(1)
+            return "U", "E"
+
+        ok, _ = qr.poll_loop(qr.make_session(), "U", "E", timeout=8, on_refresh=refresh,
+                             max_refresh=2, refresh_every=1)
+        self.assertFalse(ok)
+        self.assertLessEqual(len(calls), 3)
+
+
 class TestPrepareWait(QRTestCase):
     """CI 里拆两步用: --prepare 出码就结束(图片马上可见), --wait 再等扫码。"""
 

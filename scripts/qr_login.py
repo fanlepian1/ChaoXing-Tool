@@ -65,8 +65,21 @@ def parse_hidden(html: str, name: str) -> str:
 
 
 def make_session() -> requests.Session:
+    """尽量贴近真浏览器: 这些头缺了容易被服务端当成脚本拒绝。"""
     session = requests.Session()
-    session.headers.update({"User-Agent": UA, "Referer": LOGIN_URL})
+    session.headers.update({
+        "User-Agent": UA,
+        "Referer": LOGIN_URL,
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+        "X-Requested-With": "XMLHttpRequest",
+        "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not=A?Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+    })
     return session
 
 
@@ -75,6 +88,8 @@ def fetch_qr(session: requests.Session) -> tuple[str, str, bytes]:
     res = session.get(LOGIN_URL, timeout=20)
     res.raise_for_status()
     uuid, enc = parse_hidden(res.text, "uuid"), parse_hidden(res.text, "enc")
+    # 登录页 JS 会写 retainlogin(记住我): 浏览器有这个 cookie, 顺手补上
+    session.cookies.set("retainlogin", "2", domain="passport2.chaoxing.com")
     if not uuid:
         refresh = session.post(BASE + "/refreshQRCode", timeout=20)
         data = refresh.json()
@@ -190,6 +205,8 @@ def publish_qr(url: str, png_path: Path) -> None:
 
 
 STATE_FILE = ROOT / "qr_state.json"
+# 主动换码周期: 实测二维码有效期约 301 秒(5 分钟), 提前到 240 秒换掉更稳
+REFRESH_EVERY = 240
 
 
 def save_state(session: requests.Session, uuid: str, enc: str) -> None:
@@ -209,6 +226,76 @@ def load_state():
     return session, data["uuid"], data["enc"]
 
 
+def browser_login(timeout: int, headless: bool, print_cookie: bool) -> int:
+    """用真实浏览器完成登录(扫码或账号密码都行), 然后导出 cookie。
+
+    为什么最可靠: 这一步就是浏览器本身在跑登录页的 JS, 服务端要的 cookie/JS 环境都齐了。
+    需要先安装: pip install playwright && playwright install chromium
+    """
+    # Playwright/浏览器需要可写的临时目录; 有些环境(受限沙箱/只读 TEMP)会失败, 提前指到本地
+    cache = ROOT / ".pwcache"
+    for key in ("TMP", "TEMP", "TMPDIR"):
+        os.environ[key] = str(cache / "tmp")
+    os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(cache / "browsers"))
+    (cache / "tmp").mkdir(parents=True, exist_ok=True)
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print("[qr_login] 没装 playwright。执行:\n"
+              "    pip install playwright\n    playwright install chromium\n"
+              "然后重跑: python scripts/qr_login.py --browser", file=sys.stderr)
+        return 2
+
+    with sync_playwright() as pw:
+        browser = None
+        # 优先用你机器上已经装好的 Chrome(不用下载 Chromium, 也最像真实用户)
+        for kwargs in ({"headless": headless, "channel": "chrome"},
+                       {"headless": headless, "channel": "msedge"},
+                       {"headless": headless}):
+            try:
+                browser = pw.chromium.launch(**kwargs)
+                print(f"[qr_login] 浏览器已启动: {kwargs}")
+                break
+            except Exception as exc:                   # noqa: BLE001
+                print(f"[qr_login] 启动失败 {kwargs}: {str(exc)[:120]}")
+        if browser is None:
+            print("[qr_login] 起不来浏览器。请任选其一:\n"
+                  "  1) 装 Chrome/Edge 后重试(推荐, 不用额外下载);\n"
+                  "  2) pip install playwright && playwright install chromium\n"
+                  "     (若被权限拦住, 先设环境变量 PLAYWRIGHT_BROWSERS_PATH 到一个可写目录)",
+                  file=sys.stderr)
+            return 2
+        context = browser.new_context(locale="zh-CN")
+        page = context.new_page()
+        page.goto(LOGIN_URL, wait_until="domcontentloaded")
+        print("=" * 66)
+        print("浏览器窗口已经打开: 你可以【扫码登录】(用学习通 App 扫窗口里的二维码), ")
+        print("或者直接在窗口里用账号密码登录。登录成功后我会自动导出 cookie。")
+        print("=" * 66)
+
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            cookies = {item["name"]: item["value"] for item in context.cookies()}
+            if cookies.get("_uid"):
+                text = ";".join(f"{k}={v}" for k, v in cookies.items())
+                COOKIE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                COOKIE_FILE.write_text(text, encoding="utf-8")
+                names = ", ".join(cookies)
+                print(f"[qr_login] 检测到已登录 ✓ 已写入 {COOKIE_FILE.name}"
+                      f"({len(cookies)} 项: {names})")
+                if print_cookie:
+                    print("[qr_login] cookie 字符串(存进 secret CHAOXING_COOKIE):")
+                    print(text)
+                browser.close()
+                return 0
+            page.wait_for_timeout(1000)
+
+        print("[qr_login] 等待超时: 没检测到登录成功。", file=sys.stderr)
+        browser.close()
+        return 1
+
+
 def prepare(timeout_note: str, upload: bool, show_ascii: bool) -> int:
     """步骤A: 只负责把二维码弄出来并让人看到, 立刻结束。"""
     session = make_session()
@@ -219,6 +306,7 @@ def prepare(timeout_note: str, upload: bool, show_ascii: bool) -> int:
     print(f"[qr_login] 二维码已生成({len(png)} 字节) -> {qr_path.name}; 状态已存 {STATE_FILE.name}")
     url = upload_qr(png) if upload else ""
     publish_qr(url, qr_path)
+    print_qr_banner(url, qr_path, 1, REFRESH_EVERY)
     if show_ascii and not url:
         print(ascii_qr(png))
     print(f"[qr_login] 用【学习通 App -> 右上角扫一扫】扫码, 然后点手机上的【确认登录】"
@@ -230,18 +318,22 @@ def wait_for_scan(timeout: int, upload: bool, show_ascii: bool, print_cookie: bo
     """步骤B: 等着扫码确认, 成功后落地 cookies.txt。"""
     session, uuid, enc = load_state()
 
+    last_url = {"url": ""}
+
     def refresh():
         new_uuid, new_enc, png = fetch_qr(session)
         (ROOT / "qr.png").write_bytes(png)
         save_state(session, new_uuid, new_enc)
-        url = upload_qr(png) if upload else ""
-        if url:
-            print(f"[qr_login] 新二维码链接(点开就能扫): {url}")
-        elif show_ascii:
+        last_url["url"] = upload_qr(png) if upload else ""
+        if show_ascii and not last_url["url"]:
             print(ascii_qr(png))
         return new_uuid, new_enc
 
-    confirmed, _ = poll_loop(session, uuid, enc, timeout, refresh)
+    def banner(index):
+        print_qr_banner(last_url["url"], ROOT / "qr.png", index, REFRESH_EVERY)
+
+    confirmed, _ = poll_loop(session, uuid, enc, timeout, refresh,
+                             refresh_every=REFRESH_EVERY, on_banner=banner)
     if not confirmed and session.cookies.get("_uid"):
         print("[qr_login] 轮询未见确认, 但会话里已有 _uid: 按登录成功处理")
         confirmed = True
@@ -354,13 +446,57 @@ def describe_state(data: dict) -> str:
     return f"type={kind or '?'}" + (", " + ", ".join(notes) if notes else "")
 
 
-def poll_loop(session, uuid, enc, timeout: int, on_refresh=None, max_refresh: int = 5):
+def print_qr_banner(url: str, png_path: Path, index: int, valid_seconds: int) -> None:
+    """醒目的"扫这一张"横幅: 带序号/生成时间/有效期, 避免扫到旧图。"""
+    stamp = time.strftime("%H:%M:%S")
+    until = time.strftime("%H:%M:%S", time.localtime(time.time() + valid_seconds))
+    print("[qr_login] " + "#" * 62)
+    print(f"[qr_login] # 第 {index} 张二维码 —— 请扫【这一张】")
+    print(f"[qr_login] # 生成时间 {stamp}, 预计有效到 {until}(约 {valid_seconds} 秒)")
+    if url:
+        print(f"[qr_login] # 链接(电脑上打开, 用手机扫屏幕): {url}")
+    print(f"[qr_login] # 本地文件: {png_path.name}")
+    print("[qr_login] # 扫完务必在手机上点【确认登录】")
+    print("[qr_login] " + "#" * 62)
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        try:
+            with open(summary, "a", encoding="utf-8") as fp:
+                fp.write(f"\n### 第 {index} 张二维码({stamp} 生成, 约 {valid_seconds} 秒内有效)\n\n")
+                if url:
+                    fp.write(f"![二维码]({url})\n\n[{url}]({url})\n\n")
+                fp.write("> 用【学习通 App → 右上角扫一扫】扫这张, 然后点【确认登录】。\n"
+                         "> 过期会自动生成下一张, 以最新的一张为准。\n")
+        except OSError as exc:
+            print(f"[qr_login] 写运行摘要失败: {exc}")
+
+
+def poll_loop(session, uuid, enc, timeout: int, on_refresh=None, max_refresh: int = 8,
+              refresh_every: int = 75, on_banner=None):
     """轮询扫码状态: 处理 已扫码/取消/失效, 返回 (是否确认, 最后一次返回)。"""
     deadline = time.time() + timeout
     last_state = None
     polls = 0
     refreshes = 0
+    qr_born = time.time()
+    if on_banner:
+        on_banner(1)
     while time.time() < deadline:
+        # 主动换码: 不等服务器说失效(那时候用户手里的码已经废了)
+        if refresh_every > 0 and time.time() - qr_born >= refresh_every:
+            refreshes += 1
+            if refreshes > max_refresh:
+                print(f"[qr_login] 已经换了 {max_refresh} 张二维码仍未成功, 先停下来(频繁换码容易被风控)。"
+                      f"请改用 cookie 方式: 本地跑一次 main.py 登录, 再 "
+                      f"`python scripts/qr_login.py --export-cookie` 导出到 secret。", file=sys.stderr)
+                return False, None
+            print(f"[qr_login] 这一张已接近有效期, 主动换新码({refreshes}/{max_refresh})…")
+            if on_refresh:
+                uuid, enc = on_refresh()
+                qr_born = time.time()
+                if on_banner:
+                    on_banner(refreshes + 1)
+            last_state = None
         data = poll_once(session, uuid, enc)
         polls += 1
         state = (bool(data.get("status")), str(data.get("type", "")), str(data.get("mes") or ""))
@@ -458,14 +594,22 @@ def main() -> int:
                         help="成功后打印 cookie 字符串(建议只在本地跑时使用)")
     parser.add_argument("--write-cookie", metavar="COOKIE",
                         help="不扫码, 直接把 cookie 字符串写入 cookies.txt")
+    parser.add_argument("--browser", action="store_true",
+                        help="用真实浏览器登录(扫码/密码都行)再导出 cookie —— 最可靠, 需先装 playwright")
+    parser.add_argument("--headless", action="store_true",
+                        help="配合 --browser: 不显示窗口(看不到二维码, 一般不用)")
     parser.add_argument("--export-cookie", action="store_true",
                         help="不扫码, 直接把 cookies.txt 里的 cookie 打印出来(存进 CHAOXING_COOKIE)")
+    parser.add_argument("--refresh-every", type=int, default=REFRESH_EVERY,
+                        help=f"每多少秒主动换一张新码(默认 {REFRESH_EVERY}; 0 表示等失效才换)")
     parser.add_argument("--no-upload", action="store_true",
                         help="不把二维码上传到匿名图床(默认上传, 方便在运行摘要里直接扫)")
     args = parser.parse_args()
 
     if args.write_cookie:
         return write_cookie_string(args.write_cookie)
+    if args.browser:
+        return browser_login(max(30, args.timeout), args.headless, args.print_cookie)
     if args.export_cookie:
         if not COOKIE_FILE.exists():
             print(f"[qr_login] 找不到 {COOKIE_FILE}(先本地跑一次 main.py 登录, 或扫码成功后就有)",
@@ -485,6 +629,7 @@ def main() -> int:
             return 2
     if args.wait:
         try:
+            globals()["REFRESH_EVERY"] = max(0, args.refresh_every)
             return wait_for_scan(max(10, args.timeout), not args.no_upload,
                                  not args.no_ascii, args.print_cookie)
         except Exception as exc:                       # noqa: BLE001
