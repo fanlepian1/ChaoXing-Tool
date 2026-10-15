@@ -77,6 +77,8 @@ def parse_args():
     )
 
     parser.add_argument("--use-cookies", action="store_true", help="使用cookies登录")
+    parser.add_argument("--list-courses", action="store_true",
+                        help="只登录并打印课程表(courseId/classId), 不刷课")
 
     parser.add_argument(
         "-c", "--config", type=str, default=None, help="使用配置文件运行程序"
@@ -786,8 +788,43 @@ def process_course(chaoxing: Chaoxing, course:dict[str, Any], config: dict):
 
     tqdm.format_sizeof = _old_format_sizeof
 
+def _split_course_ids(raw) -> list:
+    """把用户填的课程ID串拆开: 逗号/中文逗号/换行/空格 都当分隔符, 并去掉空白。"""
+    if raw is None:
+        return []
+    if isinstance(raw, (list, tuple)):
+        items = []
+        for item in raw:
+            items.extend(_split_course_ids(item))
+        return items
+    text = str(raw).replace("，", ",").replace(";", ",").replace("；", ",")
+    text = text.replace("\r", "\n").replace("\n", ",").replace("\t", ",")
+    out = []
+    for item in text.split(","):
+        item = item.strip()
+        if item:
+            out.append(item)
+    return out
+
+
+def describe_courses(all_course) -> str:
+    """生成"你的课程表"文本: 课程名 + courseId + classId。"""
+    lines = ["当前账号下的课程列表(把下面列出的 courseId 填进 CHAOXING_COURSE_LIST 即可):"]
+    for index, course in enumerate(all_course, 1):
+        lines.append(
+            f"  {index}. {course.get('title', '(无标题)')}\n"
+            f"      courseId = {course.get('courseId')}    classId = {course.get('classId')}"
+        )
+    if len(all_course) == 0:
+        lines.append("  (没有取到任何课程: 账号没选课, 或登录态有问题)")
+    return "\n".join(lines)
+
+
 def filter_courses(all_course, course_list):
-    """过滤要学习的课程"""
+    """过滤要学习的课程。
+
+    匹配规则: 用户填的 ID 命中 courseId 或 classId 任一即可(很多人从网址里复制的是班级号)。
+    """
     if not course_list:
         if not stdin_is_interactive():
             # 非交互环境(GitHub Actions 等)不能等待输入, 默认学习全部课程
@@ -804,22 +841,32 @@ def filter_courses(all_course, course_list):
             ).split(",")
         except Exception as e:
             raise InputFormatError("输入格式错误") from e
-    course_list = [str(course_id).strip() for course_id in course_list if str(course_id).strip()]
+
+    course_list = _split_course_ids(course_list)
     if not course_list:
         logger.warning("未指定课程ID，将学习全部课程")
         return all_course
 
-    # 筛选需要学习的课程
     course_task = []
-    course_ids = []
+    seen = set()
     for course in all_course:
-        if course["courseId"] in course_list and course["courseId"] not in course_ids:
-            course_task.append(course)
-            course_ids.append(course["courseId"])
-    
+        ids = {str(course.get("courseId") or ""), str(course.get("classId") or "")}
+        if ids & set(course_list):
+            key = str(course.get("courseId") or course.get("classId"))
+            if key not in seen:
+                seen.add(key)
+                course_task.append(course)
+
     if not course_task:
-        raise InputFormatError(f"未找到指定课程ID: {', '.join(course_list)}")
-    
+        # 报错要说清楚: 你填了几个 ID、课程表长什么样 —— 否则用户只能猜(secret 还会被打码)
+        logger.error(f"没匹配到任何课程。你填了 {len(course_list)} 个 ID"
+                     f"(每个长度 {', '.join(str(len(item)) for item in course_list)} 位);"
+                     f" 注意不要把中文逗号/换行/空格混进来, 也不要填课程名")
+        logger.error(describe_courses(all_course))
+        raise InputFormatError(
+            f"未找到指定课程ID(共 {len(course_list)} 个)。"
+            f"请按上面的课程列表, 把 courseId 填进 CHAOXING_COURSE_LIST; "
+            f"想先跑全部课程就把这个 secret 留空")
     return course_task
 
 
@@ -865,6 +912,11 @@ def main():
         # 获取所有的课程列表
         all_course = chaoxing.get_course_list()
         
+        # 只要课程表(--list-courses): 登录后打印出来就退出, 方便抄正确的 ID
+        if getattr(args, "list_courses", False):
+            logger.info(describe_courses(all_course))
+            return
+
         # 过滤要学习的课程
         course_task = filter_courses(all_course, common_config.get("course_list"))
         

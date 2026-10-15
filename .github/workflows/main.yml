@@ -175,12 +175,14 @@ jobs:
           echo "登录方式: ${{ steps.login.outputs.mode }}"
           python main.py $args
 
-      - name: 干跑(只检查配置与题库, 不刷课)
+      - name: 干跑(登录 + 打印课程表, 不刷课)
         if: ${{ github.event.inputs.dry_run == 'true' }}
         run: |
           python scripts/tiku_tool.py stats
-          python scripts/tiku_tool.py lookup -q "以下哪个是网络层协议？" || true
-          echo "干跑结束: 配置与题库都可用, 去掉 dry_run 即可真正刷课"
+          echo "--- 课程表(把 courseId 填进 CHAOXING_COURSE_LIST; 也可以留空刷全部课程) ---"
+          python main.py --config config.ini -u "$CHAOXING_USERNAME" -p "$CHAOXING_PASSWORD" \
+            --list-courses ${{ steps.login.outputs.mode != 'password' && '--use-cookies' || '' }} || true
+          echo "干跑结束: 上面就是你的 courseId; 去掉 dry_run 即可真正刷课"
 
       - name: 运行摘要(题目命中情况一目了然)
         if: always()

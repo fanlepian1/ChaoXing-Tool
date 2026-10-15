@@ -12,7 +12,59 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import main as main_module  # noqa: E402
+from api.exceptions import InputFormatError  # noqa: E402
 from api.answer import Tiku  # noqa: E402
+
+
+class TestCourseFilter(unittest.TestCase):
+    """课程ID 匹配: 常见的"填错"都要能容错或说清楚原因。"""
+
+    COURSES = [
+        {"courseId": "2151141", "classId": "987654", "title": "中国共产党历史"},
+        {"courseId": "189191", "classId": "111222", "title": "大学英语"},
+    ]
+
+    def test_plain_ids(self):
+        got = main_module.filter_courses(self.COURSES, ["2151141"])
+        self.assertEqual([c["title"] for c in got], ["中国共产党历史"])
+
+    def test_fullwidth_comma_and_newlines(self):
+        got = main_module.filter_courses(self.COURSES, "2151141，\n189191\n")
+        self.assertEqual(len(got), 2)
+
+    def test_spaces_and_extra_commas(self):
+        got = main_module.filter_courses(self.COURSES, " 2151141 , , 189191 ")
+        self.assertEqual(len(got), 2)
+
+    def test_class_id_also_matches(self):
+        """很多人从网址里复制的是班级号(classId), 也应该能匹配上。"""
+        got = main_module.filter_courses(self.COURSES, ["987654"])
+        self.assertEqual([c["title"] for c in got], ["中国共产党历史"])
+
+    def test_int_input(self):
+        got = main_module.filter_courses(self.COURSES, [2151141])
+        self.assertEqual(len(got), 1)
+
+    def test_not_found_error_lists_available_courses(self):
+        with self.assertRaises(InputFormatError) as ctx:
+            main_module.filter_courses(self.COURSES, ["000000"])
+        message = str(ctx.exception)
+        self.assertIn("courseId", message)
+
+    def test_describe_courses_contains_ids(self):
+        text = main_module.describe_courses(self.COURSES)
+        self.assertIn("2151141", text)
+        self.assertIn("987654", text)
+        self.assertIn("中国共产党历史", text)
+
+    def test_empty_course_list_uses_all(self):
+        """CI/非交互环境下, 不填课程ID就应该刷全部课程(不能卡在 input())。
+
+        注意: 这个行为取决于 stdin 是否可交互, 测试里必须把它固定成"非交互", 否则在本地
+        连着控制台跑测试时会走到 input() 分支(这正是之前 CI 与本地表现不一致的老坑)。
+        """
+        with mock.patch.object(main_module, "stdin_is_interactive", return_value=False):
+            self.assertEqual(len(main_module.filter_courses(self.COURSES, [])), 2)
 
 
 class TestResolveTikuConfig(unittest.TestCase):
