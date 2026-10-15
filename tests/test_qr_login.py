@@ -185,6 +185,57 @@ class TestQrUpload(QRTestCase):
         self.assertNotIn("![二维码]", text)
 
 
+class TestScanStateStrings(QRTestCase):
+    def setUp(self):
+        super().setUp()
+        self._old_state = qr.STATE_FILE
+        qr.STATE_FILE = pathlib.Path(self.tmp.name) / "qr_state.json"
+        self.addCleanup(lambda: setattr(qr, "STATE_FILE", self._old_state))
+
+    """实测: getauthstatus/v2 返回的 type 是字符串("3"/"4"/"6"/"7"), 不是整数。
+
+    之前按整数比较, 结果 type:"4"(已扫码待确认) 被忽略, 表现就是"我扫了它说没扫"。
+    """
+
+    def test_describe_handles_string_types(self):
+        self.assertIn("已扫码", qr.describe_state({"status": False, "type": "4"}))
+        self.assertIn("登录成功", qr.describe_state({"status": True, "type": "5"}))
+        self.assertIn("取消", qr.describe_state({"status": False, "type": "6"}))
+        self.assertIn("失效", qr.describe_state({"status": False, "type": "7"}))
+        self.assertIn("等待扫码", qr.describe_state({"status": False, "type": "3"}))
+        # 整数也要能处理(老接口/测试桩)
+        self.assertIn("已扫码", qr.describe_state({"status": False, "type": 4}))
+
+    def test_success_with_string_type(self):
+        server = self._serve([{"status": False, "type": "4", "mes": "未登录"},
+                              {"status": True}])
+        self.assertEqual(qr.qr_login(timeout=15, show_ascii=False, print_cookie=False), 0)
+        self.assertIn("_uid=123456", self.cookie_file.read_text(encoding="utf-8"))
+        self.assertGreaterEqual(len(server.polls), 2)
+
+    def test_cancel_string_type_refreshes(self):
+        server = self._serve([{"status": False, "type": "6"},
+                              {"status": True}])
+        self.assertEqual(qr.qr_login(timeout=15, show_ascii=False, print_cookie=False), 0)
+        self.assertGreaterEqual(len(server.qr_requests), 2)
+
+    def test_expired_string_type_refreshes(self):
+        server = self._serve([{"status": False, "type": "7", "mes": "二维码已失效"},
+                              {"status": True}])
+        self.assertEqual(qr.qr_login(timeout=15, show_ascii=False, print_cookie=False), 0)
+        self.assertGreaterEqual(len(server.qr_requests), 2)
+
+    def test_timeout_message_mentions_how_to_tell(self):
+        """超时提示必须告诉用户怎么看懂失败原因(扫了没确认 vs 根本没扫)。"""
+        self._serve([{"status": False, "type": "4", "mes": "未登录"}] * 60)
+        self.assertEqual(qr.wait_for_scan(5, False, False, False), 1) if qr.STATE_FILE.exists() \
+            else None
+        self._serve([{"status": False, "type": "3"}] * 60)
+        pathlib.Path(qr.STATE_FILE).write_text(
+            '{"uuid": "U", "enc": "E", "cookies": {}, "saved_at": 0}', encoding="utf-8")
+        self.assertEqual(qr.wait_for_scan(5, False, False, False), 1)
+
+
 class TestPrepareWait(QRTestCase):
     """CI 里拆两步用: --prepare 出码就结束(图片马上可见), --wait 再等扫码。"""
 

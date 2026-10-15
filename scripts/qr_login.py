@@ -229,41 +229,33 @@ def prepare(timeout_note: str, upload: bool, show_ascii: bool) -> int:
 def wait_for_scan(timeout: int, upload: bool, show_ascii: bool, print_cookie: bool) -> int:
     """步骤B: 等着扫码确认, 成功后落地 cookies.txt。"""
     session, uuid, enc = load_state()
-    deadline = time.time() + timeout
-    scanned = False
-    last_note = ""
-    while time.time() < deadline:
-        data = poll_once(session, uuid, enc)
-        if data.get("status"):
-            cookie_text = save_cookie_file(session)
-            names = ", ".join(k for k, _ in session.cookies.items())
-            print(f"[qr_login] 手机已确认, 登录成功 ✓ 已写入 {COOKIE_FILE.name}({len(session.cookies)} 项: {names})")
-            if print_cookie:
-                print("[qr_login] cookie 字符串:")
-                print(cookie_text)
-            STATE_FILE.unlink(missing_ok=True)
-            return 0
-        kind = data.get("type")
-        if kind == 4 and not scanned:
-            scanned = True
-            print(f"[qr_login] 已扫码({data.get('nickname', '')}), 请在手机上点【确认登录】…")
-        elif kind in (6, 7):
-            note = str(data.get("mes", "")) if kind == 7 else "手机取消了"
-            if note != last_note:
-                print(f"[qr_login] {note}, 换成新二维码…")
-                last_note = note
-            uuid, enc, png = fetch_qr(session)
-            (ROOT / "qr.png").write_bytes(png)
-            save_state(session, uuid, enc)
-            url = upload_qr(png) if upload else ""
-            if url:
-                print(f"[qr_login] 新二维码链接(点开就能扫): {url}")
-            if show_ascii:
-                print(ascii_qr(png))
-        time.sleep(2)
-    print("[qr_login] 等待超时: 没有检测到扫码确认。可以重跑这一步, 或改用账号密码登录。",
-          file=sys.stderr)
-    return 1
+
+    def refresh():
+        new_uuid, new_enc, png = fetch_qr(session)
+        (ROOT / "qr.png").write_bytes(png)
+        save_state(session, new_uuid, new_enc)
+        url = upload_qr(png) if upload else ""
+        if url:
+            print(f"[qr_login] 新二维码链接(点开就能扫): {url}")
+        elif show_ascii:
+            print(ascii_qr(png))
+        return new_uuid, new_enc
+
+    confirmed, _ = poll_loop(session, uuid, enc, timeout, refresh)
+    if not confirmed:
+        print("[qr_login] 等待超时。若你确实扫了码, 请看上面的『扫码状态变化』日志:\n"
+              "         停在『已扫码, 等待手机确认』= 手机上没点【确认登录】;\n"
+              "         一直『等待扫码』= 扫的不是这张码(或没用学习通 App 扫)。", file=sys.stderr)
+        return 1
+
+    cookie_text = save_cookie_file(session)
+    names = ", ".join(k for k, _ in session.cookies.items())
+    print(f"[qr_login] 登录成功 ✓ 已写入 {COOKIE_FILE.name}({len(session.cookies)} 项: {names})")
+    if print_cookie:
+        print("[qr_login] cookie 字符串:")
+        print(cookie_text)
+    STATE_FILE.unlink(missing_ok=True)
+    return 0
 
 
 def poll_once(session: requests.Session, uuid: str, enc: str) -> dict:
@@ -306,6 +298,64 @@ def write_cookie_string(raw: str) -> int:
     return 0
 
 
+SCAN_STATE_TEXT = {
+    "0": "等待扫码",
+    "1": "等待扫码",
+    "2": "已扫码, 等待手机确认",
+    "3": "等待扫码",
+    "4": "已扫码, 等待手机确认",
+    "5": "已确认",
+    "6": "手机上已取消",
+    "7": "二维码失效/出错",
+}
+
+
+def describe_state(data: dict) -> str:
+    """把接口返回翻译成人能看懂的一句话。
+
+    实测: getauthstatus/v2 返回的 type 是**字符串**("3"/"4"...), 不是整数 —— 之前按整数比较,
+    导致 type:"4"(已扫码待确认) 被忽略, 看起来就像"扫了却说没扫"。
+    """
+    kind = str(data.get("type", ""))
+    notes = []
+    if data.get("status"):
+        notes.append("status=true 登录成功")
+    text = SCAN_STATE_TEXT.get(kind)
+    if text and not data.get("status"):
+        notes.append(text)
+    mes = str(data.get("mes") or "")
+    if mes and mes != "未登录":
+        notes.append(mes)
+    return f"type={kind or '?'}" + (", " + ", ".join(notes) if notes else "")
+
+
+def poll_loop(session, uuid, enc, timeout: int, on_refresh=None):
+    """轮询扫码状态: 处理 已扫码/取消/失效, 返回 (是否确认, 最后一次返回)。"""
+    deadline = time.time() + timeout
+    last_state = None
+    polls = 0
+    while time.time() < deadline:
+        data = poll_once(session, uuid, enc)
+        polls += 1
+        state = (bool(data.get("status")), str(data.get("type", "")), str(data.get("mes") or ""))
+        if state != last_state:
+            print(f"[qr_login] 扫码状态变化: {describe_state(data)}   (原始返回 {data})")
+            last_state = state
+        elif polls % 10 == 0:
+            print(f"[qr_login] 仍在等待({describe_state(data)}) 剩余 {max(0, int(deadline - time.time()))} 秒")
+
+        if data.get("status"):
+            return True, data
+        kind = str(data.get("type", ""))
+        if kind in ("6", "7"):
+            reason = "手机上取消了" if kind == "6" else "二维码失效/出错"
+            print(f"[qr_login] {reason}, 换成新二维码…")
+            if on_refresh:
+                uuid, enc = on_refresh()
+        time.sleep(2)
+    return False, None
+
+
 def qr_login(timeout: int, show_ascii: bool, print_cookie: bool, upload: bool = False) -> int:
     session = make_session()
     uuid, enc, png = fetch_qr(session)
@@ -319,49 +369,17 @@ def qr_login(timeout: int, show_ascii: bool, print_cookie: bool, upload: bool = 
         print(ascii_qr(png))
         print("\n扫完请在手机上点【确认登录】。等待中...(最多 %d 秒)" % timeout)
 
-    deadline = time.time() + timeout
-    last_note = ""
-    scanned = False
-    while time.time() < deadline:
-        data = poll_once(session, uuid, enc)
-        if data.get("status"):
-            print("[qr_login] 手机已确认, 登录成功 ✓")
-            cookie_text = save_cookie_file(session)
-            names = ", ".join(k for k, _ in session.cookies.items())
-            print(f"[qr_login] 已写入 {COOKIE_FILE.name}({len(session.cookies)} 项: {names})")
-            print("[qr_login] 接下来可以: python main.py --use-cookies ...")
-            if print_cookie:
-                print("[qr_login] cookie 字符串(本地跑时把它存进 secret CHAOXING_COOKIE; "
-                      "在公开仓库的 Actions 日志里不要开这个开关):")
-                print(cookie_text)
-            return 0
-
-        kind = data.get("type")
-        if kind == 4 and not scanned:
-            scanned = True
-            nickname = data.get("nickname", "")
-            print(f"[qr_login] 已扫码({nickname}), 请在手机上点确认…")
-        elif kind == 6:
-            print("[qr_login] 手机上取消了, 重新生成二维码…")
-            uuid, enc, png = fetch_qr(session)
-            qr_path.write_bytes(png)
-            url = upload_qr(png) if upload else ""
-            publish_qr(url, qr_path)
-            if show_ascii:
-                print(ascii_qr(png))
-            print("[qr_login] 请重新扫码(最多 %d 秒)" % max(0, int(deadline - time.time())))
-        elif kind == 7:
-            note = str(data.get("mes", ""))
-            if note != last_note:
-                print(f"[qr_login] 服务端提示: {note}, 重新生成二维码…")
-                last_note = note
-            uuid, enc, png = fetch_qr(session)
-            qr_path.write_bytes(png)
-            url = upload_qr(png) if upload else ""
-            publish_qr(url, qr_path)
-            if show_ascii:
-                print(ascii_qr(png))
-        time.sleep(2)
+    confirmed, _ = poll_loop(session, uuid, enc, timeout,
+                             lambda: fetch_qr(session)[:2])
+    if confirmed:
+        cookie_text = save_cookie_file(session)
+        names = ", ".join(k for k, _ in session.cookies.items())
+        print(f"[qr_login] 登录成功 ✓ 已写入 {COOKIE_FILE.name}({len(session.cookies)} 项: {names})")
+        print("[qr_login] 接下来可以: python main.py --use-cookies ...")
+        if print_cookie:
+            print("[qr_login] cookie 字符串(本地跑时把它存进 secret CHAOXING_COOKIE):")
+            print(cookie_text)
+        return 0
 
     print("[qr_login] 等待超时: 没有检测到扫码确认。可以重跑脚本, 或改用账号密码登录。",
           file=sys.stderr)
