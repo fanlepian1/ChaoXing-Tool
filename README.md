@@ -88,6 +88,34 @@
 | `TIKU_ENDPOINT` / `TIKU_KEY` / `TIKU_MODEL` | 任意 OpenAI 兼容接口 | 可选 |
 | `NOTIFY_PROVIDER` / `NOTIFY_URL` / `TG_CHAT_ID` | 跑完推送通知 | 可选 |
 
+### 3.05 扫码登录（不想把密码存在仓库里 / 怕被风控冻结）
+
+密码登录容易触发风控（"多次输入密码错误已冻结15分钟"就是这么来的），扫码登录换来的会话 cookie
+可以直接被主程序使用（`python main.py --use-cookies`）。
+
+**方式一：在 Actions 里扫（每次运行扫一次）**
+
+1. `Actions → 刷课 → Run workflow`，把 **`login` 填 `qr`**（`qr_timeout` 是等待秒数，默认 300）；
+2. 运行开始后打开这条运行的**实时日志**，找到 `登录方式判断(扫码 / cookie)` 这一步 ——
+   日志里会打印一个 ASCII 二维码（同时也会存成 `qr.png` 供下载）；
+3. 打开**学习通 App → 右上角扫一扫**，扫屏幕上的二维码，再在手机上点【确认登录】；
+4. 脚本检测到确认后会把会话 cookie 写进 `cookies.txt`，然后自动带 `--use-cookies` 刷课，**全程不需要密码**。
+
+**方式二：把 cookie 存进 secret（之后不用每次扫）**
+
+在你自己电脑上跑一次：
+
+```bash
+python scripts/qr_login.py --print-cookie     # 手机扫完会打印一行 k=v;k=v 的 cookie
+```
+
+把那一行存进 `Settings → Secrets and variables → Actions → CHAOXING_COOKIE`。之后 `login` 保持默认 `auto` 即可：
+有 cookie 就用 cookie，**cookie 过期（一般几天到两周）会自动回退到账号密码登录**（前提是 secrets 里还有用户名密码）。
+
+> 安全提醒：cookie 等于“免密登录凭证”。这个仓库目前是**公开**的，所以
+> ① 不要把 `cookies.txt` 提交进仓库（已在 `.gitignore` 里）；② 不要在 Actions 日志里开 `--print-cookie`
+> （公开仓库的运行日志人人可见），要打印就在本地跑；③ 想彻底放心就把仓库改成私有。
+
 ### 3.1 题库到底怎么才能“用上”——按投入从少到多选一条
 
 **第 0 档：什么都不配（可用，零成本）**

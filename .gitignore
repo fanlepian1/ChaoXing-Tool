@@ -163,3 +163,6 @@ cache.json
 tmp[0-9a-zA-Z_]*/
 pip-ephem-wheel-cache*/
 .venv/
+
+# 登录产物(扫码登录生成的会话 cookie 与二维码)
+qr.png

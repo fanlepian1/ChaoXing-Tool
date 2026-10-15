@@ -197,6 +197,18 @@ class TestWorkflowFile(unittest.TestCase):
         self.assertIn("git push origin \"HEAD:${GITHUB_REF_NAME}\"", self.text)
         self.assertIn("推送失败, 3 秒后重试", self.text)
 
+    def test_qr_login_is_wired(self):
+        """扫码登录接线: 输入项、cookie secret、登录步骤、--use-cookies、以及 pillow 依赖。"""
+        self.assertIn("github.event.inputs.login", self.text)
+        self.assertIn("github.event.inputs.qr_timeout", self.text)
+        self.assertIn("secrets.CHAOXING_COOKIE", self.text)
+        self.assertIn("scripts/qr_login.py", self.text)
+        self.assertIn("--use-cookies", self.text)
+        self.assertIn("CHAOXING_USE_COOKIES", self.text)
+        self.assertIn("steps.login.outputs.mode", self.text)
+        requirements = (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8").lower()
+        self.assertIn("pillow", requirements, "ASCII 二维码渲染需要 pillow")
+
     def test_cache_save_is_guarded(self):
         # actions/cache/save 在文件不存在时会直接失败, 所以回写步骤必须先保证文件存在
         self.assertIn("mkdir -p tiku", self.text)

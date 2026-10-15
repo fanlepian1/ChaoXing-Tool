@@ -43,6 +43,14 @@ on:
         description: '只检查配置与题库、不真正刷课(true/false)'
         required: false
         default: 'false'
+      login:
+        description: '登录方式: auto(默认,有 CHAOXING_COOKIE 就用它)/qr(打印二维码等你扫)/cookie/password'
+        required: false
+        default: 'auto'
+      qr_timeout:
+        description: '扫码等待秒数(仅 login=qr 时有效)'
+        required: false
+        default: '300'
 
 # 回写 tiku/ 下的题库与缓存需要写权限
 permissions:
@@ -61,6 +69,9 @@ jobs:
       CHAOXING_SPEED: ${{ github.event.inputs.speed || secrets.CHAOXING_SPEED }}
       CHAOXING_JOBS: ${{ github.event.inputs.jobs || secrets.CHAOXING_JOBS }}
       CHAOXING_NOTOPEN_ACTION: ${{ secrets.CHAOXING_NOTOPEN_ACTION }}
+      # 扫码登录: 把本地 `python scripts/qr_login.py --print-cookie` 打印的一行存进这个 secret
+      CHAOXING_COOKIE: ${{ secrets.CHAOXING_COOKIE }}
+      CHAOXING_LOGIN_MODE: ${{ github.event.inputs.login || 'auto' }}
 
       # ---------------- 题库 ----------------
       # provider=auto 时按已配置的凭据自动组链: TikuLocal -> TikuGo -> 言溪 -> TikuAdapter -> 硅基流动 -> AI
@@ -122,9 +133,35 @@ jobs:
           curl -fsSL "${{ github.event.inputs.bank_url }}" -o /tmp/import_bank
           python scripts/tiku_tool.py import --bank tiku/bank.json --input /tmp/import_bank
 
+      - name: 登录方式判断(扫码 / cookie)
+        id: login
+        run: |
+          mode="$CHAOXING_LOGIN_MODE"
+          if [ "$mode" = "auto" ]; then
+            if [ -n "$CHAOXING_COOKIE" ]; then mode="cookie"; else mode="password"; fi
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          if [ "$mode" = "cookie" ]; then
+            python scripts/qr_login.py --write-cookie "$CHAOXING_COOKIE"
+          elif [ "$mode" = "qr" ]; then
+            # 二维码会以 ASCII 打印在本步骤日志里: 打开运行页面 -> 实时日志 -> 用学习通 App 扫
+            python scripts/qr_login.py --timeout "${{ github.event.inputs.qr_timeout || '300' }}"
+          else
+            echo "使用账号密码登录"
+          fi
+
       - name: 运行刷课
         if: ${{ github.event.inputs.dry_run != 'true' }}
-        run: python main.py --config config.ini -u "$CHAOXING_USERNAME" -p "$CHAOXING_PASSWORD" -l "$CHAOXING_COURSE_LIST"
+        env:
+          # 扫码 / cookie 登录过就用 cookie；cookie 失效时程序会自动回退到账号密码
+          CHAOXING_USE_COOKIES: ${{ steps.login.outputs.mode != 'password' }}
+        run: |
+          args="--config config.ini -u \"$CHAOXING_USERNAME\" -p \"$CHAOXING_PASSWORD\" -l \"$CHAOXING_COURSE_LIST\""
+          if [ "${{ steps.login.outputs.mode }}" != "password" ]; then
+            args="$args --use-cookies"
+          fi
+          echo "登录方式: ${{ steps.login.outputs.mode }}"
+          python main.py $args
 
       - name: 干跑(只检查配置与题库, 不刷课)
         if: ${{ github.event.inputs.dry_run == 'true' }}
@@ -164,12 +201,14 @@ jobs:
           path: tiku/
           if-no-files-found: ignore
 
-      - name: 上传运行日志
+      - name: 上传运行日志与二维码
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: chaoxing-log-${{ github.run_id }}
-          path: chaoxing.log
+          path: |
+            chaoxing.log
+            qr.png
           if-no-files-found: ignore
 
       - name: 失败时输出日志尾部

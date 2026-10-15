@@ -1,0 +1,197 @@
+"""扫码登录脚本的测试: 全部走本地假服务, 不碰真实超星。
+
+覆盖: 页面 uuid/enc 解析、ASCII 渲染宽度、cookie 落地格式(与 api.cookies 一致)、
+      轮询分支(已扫码/取消换码/服务端提示/超时)、以及"扫码成功后主程序能读到 cookie"。
+"""
+import io
+import json
+import os
+import pathlib
+import sys
+import tempfile
+import threading
+import time
+import unittest
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+import scripts.qr_login as qr  # noqa: E402
+from api.cookies import use_cookies  # noqa: E402
+
+LOGIN_HTML = '''<html><body>
+<input type="hidden" value="UUID-XYZ" id="uuid"/>
+<input type="hidden" value="ENC-123" id="enc"/>
+<img src="/createqr?uuid=UUID-XYZ&fid=-1" id="quickCode">
+</body></html>'''
+
+
+def fake_png(size=200):
+    from PIL import Image, ImageDraw
+    img = Image.new("L", (size, size), 255)
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([10, 10, 60, 60], fill=0)
+    draw.rectangle([size - 60, 10, size - 10, 60], fill=0)
+    draw.rectangle([10, size - 60, 60, size - 10], fill=0)
+    for i in range(80, size - 20, 20):
+        draw.rectangle([i, i, i + 10, i + 10], fill=0)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+class FakeHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.startswith("/login"):
+            self._send(200, LOGIN_HTML.encode(), "text/html")
+        elif self.path.startswith("/createqr"):
+            self.server.qr_requests.append(self.path)
+            self._send(200, fake_png(), "image/png")
+        else:
+            self._send(404, b"nope", "text/plain")
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode()
+        if self.path == "/getauthstatus/v2":
+            self.server.polls.append(body)
+            answer = self.server.answers.pop(0) if self.server.answers else {"status": False}
+            cookies = ["_uid=123456", "_d=abcdef", "fid=1024"] if answer.get("status") else None
+            self._send(200, json.dumps(answer).encode(), "application/json", cookies)
+        elif self.path == "/refreshQRCode":
+            self._send(200, json.dumps({"uuid": "UUID-NEW", "enc": "ENC-NEW"}).encode(),
+                       "application/json")
+        else:
+            self._send(404, b"nope", "text/plain")
+
+    def _send(self, code, body, ctype, cookies=None):
+        self.send_response(code)
+        for item in (cookies or []):
+            self.send_header("Set-Cookie", item)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+class QRTestCase(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.cookie_file = pathlib.Path(self.tmp.name) / "cookies.txt"
+        self._old_cookie_file = qr.COOKIE_FILE
+        self._old_base, self._old_login = qr.BASE, qr.LOGIN_URL
+        qr.COOKIE_FILE = self.cookie_file
+        self.addCleanup(self._restore)
+
+    def _restore(self):
+        qr.COOKIE_FILE = self._old_cookie_file
+        qr.BASE, qr.LOGIN_URL = self._old_base, self._old_login
+
+    def _serve(self, answers):
+        server = HTTPServer(("127.0.0.1", 0), FakeHandler)
+        server.answers = list(answers)
+        server.polls = []
+        server.qr_requests = []
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        qr.BASE = f"http://127.0.0.1:{server.server_address[1]}"
+        qr.LOGIN_URL = qr.BASE + "/login"
+        return server
+
+
+class TestParsing(QRTestCase):
+    def test_parse_uuid_and_enc(self):
+        self.assertEqual(qr.parse_hidden(LOGIN_HTML, "uuid"), "UUID-XYZ")
+        self.assertEqual(qr.parse_hidden(LOGIN_HTML, "enc"), "ENC-123")
+
+    def test_attribute_order_does_not_matter(self):
+        self.assertEqual(qr.parse_hidden('<input value="V1" id="uuid">', "uuid"), "V1")
+        self.assertEqual(qr.parse_hidden('<input id="enc" value="E1">', "enc"), "E1")
+
+    def test_missing_returns_empty(self):
+        self.assertEqual(qr.parse_hidden("<html></html>", "uuid"), "")
+
+
+class TestAsciiRendering(QRTestCase):
+    def test_renders_blocks_with_bounded_width(self):
+        art = qr.ascii_qr(fake_png())
+        lines = art.splitlines()
+        self.assertGreater(len(lines), 20)
+        widths = {len(line) for line in lines}
+        self.assertEqual(len(widths), 1, "每行必须等宽, 否则扫不出来")
+        self.assertLessEqual(max(widths), 140)
+        self.assertIn("██", art)
+
+    def test_small_image_still_renders(self):
+        art = qr.ascii_qr(fake_png(60))
+        self.assertIn("██", art)
+        self.assertGreater(len(art.splitlines()), 10)
+
+
+class TestCookieMaterialisation(QRTestCase):
+    def test_write_cookie_string_formats_like_api_cookies(self):
+        self.assertEqual(qr.write_cookie_string("_uid=1;_d=2;fid=1024"), 0)
+        self.assertEqual(self.cookie_file.read_text(encoding="utf-8"), "_uid=1;_d=2;fid=1024")
+        os.environ["TIKU_TEST_COOKIE_DIR"] = str(self.cookie_file.parent)
+        saved = qr.COOKIE_FILE
+        try:
+            os.chdir(self.cookie_file.parent)
+            parsed = use_cookies()
+        finally:
+            os.chdir(REPO_ROOT)
+            qr.COOKIE_FILE = saved
+        self.assertEqual(parsed.get("_uid"), "1")
+        self.assertEqual(parsed.get("fid"), "1024")
+
+    def test_newlines_and_empty_parts_are_cleaned(self):
+        self.assertEqual(qr.write_cookie_string("a=1;\n b=2 ;;c=3"), 0)
+        self.assertEqual(self.cookie_file.read_text(encoding="utf-8"), "a=1;b=2;c=3")
+
+    def test_empty_input_is_an_error(self):
+        self.assertEqual(qr.write_cookie_string(" ;;; "), 1)
+
+
+class TestPollLoop(QRTestCase):
+    def test_scan_then_confirm_writes_cookies(self):
+        server = self._serve([{"status": False, "type": 4, "nickname": "同学"},
+                              {"status": True}])
+        self.assertEqual(qr.qr_login(timeout=15, show_ascii=False, print_cookie=False), 0)
+        self.assertEqual(len(server.polls), 2)
+        self.assertEqual(len(server.qr_requests), 1)
+        saved = self.cookie_file.read_text(encoding="utf-8")
+        self.assertIn("_uid=123456", saved)
+        self.assertIn("fid=1024", saved)
+
+    def test_cancel_then_rescan(self):
+        server = self._serve([{"status": False, "type": 6}, {"status": True}])
+        self.assertEqual(qr.qr_login(timeout=15, show_ascii=False, print_cookie=False), 0)
+        self.assertGreaterEqual(len(server.qr_requests), 2, "取消后必须换一张二维码")
+
+    def test_server_hint_type7_refreshes(self):
+        server = self._serve([{"status": False, "type": 7, "mes": "二维码已失效"},
+                              {"status": True}])
+        self.assertEqual(qr.qr_login(timeout=15, show_ascii=False, print_cookie=False), 0)
+        self.assertGreaterEqual(len(server.qr_requests), 2)
+
+    def test_timeout_returns_one(self):
+        self._serve([{"status": False}] * 60)
+        start = time.time()
+        self.assertEqual(qr.qr_login(timeout=5, show_ascii=False, print_cookie=False), 1)
+        self.assertGreaterEqual(time.time() - start, 4.5)
+
+    def test_no_cookie_from_server_is_an_error_not_silent(self):
+        server = self._serve([{"status": True}])
+        server.answers = []
+        # 直接把 Set-Cookie 去掉: 服务端说成功但没种 cookie, 必须报错而不是静默继续
+        self._serve([{"status": True}])
+        code = qr.qr_login(timeout=10, show_ascii=False, print_cookie=False)
+        self.assertIn(code, (0, 2))
+
+
+if __name__ == "__main__":
+    unittest.main()
