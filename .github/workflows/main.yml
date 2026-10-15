@@ -51,6 +51,10 @@ on:
         description: '扫码等待秒数(仅 login=qr 时有效)'
         required: false
         default: '300'
+      qr_upload:
+        description: '把二维码上传成图片链接(默认 true, 在运行摘要里直接显示可扫; 不想上传就填 false)'
+        required: false
+        default: 'true'
 
 # 回写 tiku/ 下的题库与缓存需要写权限
 permissions:
@@ -144,11 +148,19 @@ jobs:
           if [ "$mode" = "cookie" ]; then
             python scripts/qr_login.py --write-cookie "$CHAOXING_COOKIE"
           elif [ "$mode" = "qr" ]; then
-            # 二维码会以 ASCII 打印在本步骤日志里: 打开运行页面 -> 实时日志 -> 用学习通 App 扫
-            python scripts/qr_login.py --timeout "${{ github.event.inputs.qr_timeout || '300' }}"
+            # 先生成二维码(这一步会很快结束, 图片/链接立刻在运行摘要与日志里可见), 下一步再等扫码
+            extra=""
+            if [ "${{ github.event.inputs.qr_upload }}" = "false" ]; then extra="--no-upload"; fi
+            python scripts/qr_login.py --prepare --timeout "${{ github.event.inputs.qr_timeout || '300' }}" $extra
           else
             echo "使用账号密码登录"
           fi
+
+      - name: 等待扫码确认(login=qr)
+        if: steps.login.outputs.mode == 'qr'
+        run: |
+          python scripts/qr_login.py --wait --timeout "${{ github.event.inputs.qr_timeout || '300' }}"
+          echo "登录完成, 接下来用 cookie 刷课"
 
       - name: 运行刷课
         if: ${{ github.event.inputs.dry_run != 'true' }}

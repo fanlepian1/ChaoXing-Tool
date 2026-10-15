@@ -133,6 +133,95 @@ class TestAsciiRendering(QRTestCase):
         self.assertGreater(len(art.splitlines()), 10)
 
 
+class TestQrUpload(QRTestCase):
+    """二维码图片上传(failover)与运行摘要: 上传失败也必须能优雅退化, 不能挡登录。"""
+
+    def test_first_working_host_wins(self):
+        tried = []
+
+        def failing(session, png):
+            tried.append("bad")
+            raise RuntimeError("boom")
+
+        def good(session, png):
+            tried.append("good")
+            return "https://example.invalid/qr.png"
+
+        old = qr.UPLOAD_TARGETS
+        qr.UPLOAD_TARGETS = (("bad", failing), ("good", good))
+        try:
+            self.assertEqual(qr.upload_qr(fake_png()), "https://example.invalid/qr.png")
+        finally:
+            qr.UPLOAD_TARGETS = old
+        self.assertEqual(tried, ["bad", "good"])
+
+    def test_all_hosts_down_returns_empty(self):
+        def failing(session, png):
+            raise RuntimeError("down")
+
+        old = qr.UPLOAD_TARGETS
+        qr.UPLOAD_TARGETS = (("a", failing), ("b", failing))
+        try:
+            self.assertEqual(qr.upload_qr(fake_png()), "")
+        finally:
+            qr.UPLOAD_TARGETS = old
+
+    def test_summary_gets_inline_image(self):
+        summary = pathlib.Path(self.tmp.name) / "summary.md"
+        os.environ["GITHUB_STEP_SUMMARY"] = str(summary)
+        self.addCleanup(lambda: os.environ.pop("GITHUB_STEP_SUMMARY", None))
+        qr.publish_qr("https://example.invalid/qr.png", pathlib.Path("qr.png"))
+        text = summary.read_text(encoding="utf-8")
+        self.assertIn("![二维码](https://example.invalid/qr.png)", text)
+        self.assertIn("扫码登录", text)
+
+    def test_summary_handles_upload_failure(self):
+        summary = pathlib.Path(self.tmp.name) / "summary.md"
+        os.environ["GITHUB_STEP_SUMMARY"] = str(summary)
+        self.addCleanup(lambda: os.environ.pop("GITHUB_STEP_SUMMARY", None))
+        qr.publish_qr("", pathlib.Path("qr.png"))
+        text = summary.read_text(encoding="utf-8")
+        self.assertIn("二维码上传失败", text)
+        self.assertNotIn("![二维码]", text)
+
+
+class TestPrepareWait(QRTestCase):
+    """CI 里拆两步用: --prepare 出码就结束(图片马上可见), --wait 再等扫码。"""
+
+    def setUp(self):
+        super().setUp()
+        self._old_state = qr.STATE_FILE
+        qr.STATE_FILE = pathlib.Path(self.tmp.name) / "qr_state.json"
+        self._old_root = qr.ROOT
+        qr.ROOT = pathlib.Path(self.tmp.name)
+        self.addCleanup(self._restore_state)
+
+    def _restore_state(self):
+        qr.STATE_FILE = self._old_state
+        qr.ROOT = self._old_root
+
+    def test_prepare_then_wait(self):
+        server = self._serve([{"status": False, "type": 4, "nickname": "同学"},
+                              {"status": True}])
+        old_targets = qr.UPLOAD_TARGETS
+        qr.UPLOAD_TARGETS = (("stub", lambda session, png: "https://example.invalid/qr.png"),)
+        try:
+            self.assertEqual(qr.prepare("最多 15 秒内有效", True, False), 0)
+            self.assertTrue(qr.STATE_FILE.exists(), "prepare 必须留下状态文件")
+            self.assertTrue((pathlib.Path(self.tmp.name) / "qr.png").exists())
+            self.assertEqual(len(server.qr_requests), 1)
+            self.assertEqual(qr.wait_for_scan(15, True, False, False), 0)
+            self.assertIn("_uid=123456", self.cookie_file.read_text(encoding="utf-8"))
+            self.assertFalse(qr.STATE_FILE.exists(), "成功后应清掉状态文件")
+            self.assertGreaterEqual(len(server.polls), 2)
+        finally:
+            qr.UPLOAD_TARGETS = old_targets
+
+    def test_wait_without_prepare_is_an_error(self):
+        with self.assertRaises(RuntimeError):
+            qr.load_state()
+
+
 class TestCookieMaterialisation(QRTestCase):
     def test_write_cookie_string_formats_like_api_cookies(self):
         self.assertEqual(qr.write_cookie_string("_uid=1;_d=2;fid=1024"), 0)

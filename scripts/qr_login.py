@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import os
 import re
 import sys
@@ -112,6 +113,159 @@ def ascii_qr(png: bytes, quiet: int = 2, max_cols: int = 60) -> str:
     return "\n".join([blank] * quiet + rows + [blank] * quiet)
 
 
+# 依次尝试, 第一个成功的就用。顺序按"国内能不能打开"实测排的:
+#   uguu.se      实测国内可打开 ✓(首选)
+#   tmpfiles.org 国内打开返回的不是图片(留作备用)
+#   catbox.moe   国内被墙(备用)
+#   0x0.st       已关闭上传(移除)
+UPLOAD_TARGETS = (
+    ("uguu.se", lambda session, png: _upload_uguu(session, png)),
+    ("tmpfiles.org", lambda session, png: _upload_tmpfiles(session, png)),
+    ("catbox.moe", lambda session, png: _upload_catbox(session, png)),
+)
+
+
+def _upload_tmpfiles(session: requests.Session, png: bytes) -> str:
+    res = session.post("https://tmpfiles.org/api/v1/upload",
+                       files={"file": ("qr.png", png, "image/png")}, timeout=40)
+    url = res.json()["data"]["url"]
+    return url.replace("tmpfiles.org/", "tmpfiles.org/dl/", 1)
+
+
+def _upload_0x0(session: requests.Session, png: bytes) -> str:
+    res = session.post("https://0x0.st", files={"file": ("qr.png", png, "image/png")},
+                       timeout=40)
+    return res.text.strip()
+
+
+def _upload_catbox(session: requests.Session, png: bytes) -> str:
+    res = session.post("https://catbox.moe/user/api.php",
+                       data={"reqtype": "fileupload"},
+                       files={"fileToUpload": ("qr.png", png, "image/png")}, timeout=40)
+    return res.text.strip()
+
+
+def _upload_uguu(session: requests.Session, png: bytes) -> str:
+    res = session.post("https://uguu.se/upload", params={"output": "text"},
+                       files={"files[]": ("qr.png", png, "image/png")}, timeout=40)
+    return res.text.strip()
+
+
+def upload_qr(png: bytes) -> str:
+    """把二维码传到匿名图床, 返回可点开的直链(全部失败时返回空串)。"""
+    session = make_session()
+    for name, uploader in UPLOAD_TARGETS:
+        try:
+            url = uploader(session, png)
+            if url.startswith("http"):
+                print(f"[qr_login] 二维码图片已上传到 {name}(在电脑上打开下面这个链接, 用手机扫屏幕):")
+                print(f"[qr_login] {url}")
+                return url
+        except Exception as exc:                       # noqa: BLE001
+            print(f"[qr_login] 上传到 {name} 失败({exc}), 换下一个图床…")
+    print("[qr_login] 所有图床都不可用: 请看下面的 ASCII 二维码, 或等运行结束后下载 qr.png")
+    return ""
+
+
+def publish_qr(url: str, png_path: Path) -> None:
+    """把二维码链接/图片写进运行摘要(手机上打开运行页面就能直接扫)。"""
+    if url:
+        print(f"\n二维码图片(点开就能扫): {url}\n")
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary:
+        return
+    try:
+        with open(summary, "a", encoding="utf-8") as fp:
+            fp.write("## 扫码登录\n\n")
+            if url:
+                fp.write(f"[点不开就复制这个链接]({url})\n\n![二维码]({url})\n\n")
+                fp.write("> 用【学习通 App → 右上角扫一扫】扫上面这张码, 然后在手机上点【确认登录】。\n")
+                fp.write("> 注意: 这张码是**一次性**的, 登录成功后就没用了; 超时会自动换新码。\n\n")
+            else:
+                fp.write("二维码上传失败, 请看这次运行的日志里的 ASCII 码, "
+                         "或等运行结束下载 `qr.png`。\n\n")
+            fp.write(f"本地也保存了一份: `{png_path.name}`\n")
+    except OSError as exc:
+        print(f"[qr_login] 写运行摘要失败: {exc}")
+
+
+STATE_FILE = ROOT / "qr_state.json"
+
+
+def save_state(session: requests.Session, uuid: str, enc: str) -> None:
+    STATE_FILE.write_text(json.dumps({
+        "uuid": uuid, "enc": enc,
+        "cookies": session.cookies.get_dict(),
+        "saved_at": time.time(),
+    }, ensure_ascii=False), encoding="utf-8")
+
+
+def load_state():
+    if not STATE_FILE.exists():
+        raise RuntimeError(f"找不到 {STATE_FILE.name}, 请先跑一次 --prepare")
+    data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    session = make_session()
+    session.cookies.update(data.get("cookies") or {})
+    return session, data["uuid"], data["enc"]
+
+
+def prepare(timeout_note: str, upload: bool, show_ascii: bool) -> int:
+    """步骤A: 只负责把二维码弄出来并让人看到, 立刻结束。"""
+    session = make_session()
+    uuid, enc, png = fetch_qr(session)
+    qr_path = ROOT / "qr.png"
+    qr_path.write_bytes(png)
+    save_state(session, uuid, enc)
+    print(f"[qr_login] 二维码已生成({len(png)} 字节) -> {qr_path.name}; 状态已存 {STATE_FILE.name}")
+    url = upload_qr(png) if upload else ""
+    publish_qr(url, qr_path)
+    if show_ascii and not url:
+        print(ascii_qr(png))
+    print(f"[qr_login] 用【学习通 App -> 右上角扫一扫】扫码, 然后点手机上的【确认登录】"
+          f"({timeout_note})")
+    return 0
+
+
+def wait_for_scan(timeout: int, upload: bool, show_ascii: bool, print_cookie: bool) -> int:
+    """步骤B: 等着扫码确认, 成功后落地 cookies.txt。"""
+    session, uuid, enc = load_state()
+    deadline = time.time() + timeout
+    scanned = False
+    last_note = ""
+    while time.time() < deadline:
+        data = poll_once(session, uuid, enc)
+        if data.get("status"):
+            cookie_text = save_cookie_file(session)
+            names = ", ".join(k for k, _ in session.cookies.items())
+            print(f"[qr_login] 手机已确认, 登录成功 ✓ 已写入 {COOKIE_FILE.name}({len(session.cookies)} 项: {names})")
+            if print_cookie:
+                print("[qr_login] cookie 字符串:")
+                print(cookie_text)
+            STATE_FILE.unlink(missing_ok=True)
+            return 0
+        kind = data.get("type")
+        if kind == 4 and not scanned:
+            scanned = True
+            print(f"[qr_login] 已扫码({data.get('nickname', '')}), 请在手机上点【确认登录】…")
+        elif kind in (6, 7):
+            note = str(data.get("mes", "")) if kind == 7 else "手机取消了"
+            if note != last_note:
+                print(f"[qr_login] {note}, 换成新二维码…")
+                last_note = note
+            uuid, enc, png = fetch_qr(session)
+            (ROOT / "qr.png").write_bytes(png)
+            save_state(session, uuid, enc)
+            url = upload_qr(png) if upload else ""
+            if url:
+                print(f"[qr_login] 新二维码链接(点开就能扫): {url}")
+            if show_ascii:
+                print(ascii_qr(png))
+        time.sleep(2)
+    print("[qr_login] 等待超时: 没有检测到扫码确认。可以重跑这一步, 或改用账号密码登录。",
+          file=sys.stderr)
+    return 1
+
+
 def poll_once(session: requests.Session, uuid: str, enc: str) -> dict:
     res = session.post(BASE + "/getauthstatus/v2",
                        data={"enc": enc, "uuid": uuid,
@@ -152,14 +306,16 @@ def write_cookie_string(raw: str) -> int:
     return 0
 
 
-def qr_login(timeout: int, show_ascii: bool, print_cookie: bool) -> int:
+def qr_login(timeout: int, show_ascii: bool, print_cookie: bool, upload: bool = False) -> int:
     session = make_session()
     uuid, enc, png = fetch_qr(session)
     qr_path = ROOT / "qr.png"
     qr_path.write_bytes(png)
     print(f"[qr_login] 二维码已生成({len(png)} 字节), 也存到了 {qr_path.name}")
+    url = upload_qr(png) if upload else ""
+    publish_qr(url, qr_path)
     if show_ascii:
-        print("\n请用【学习通 App -> 右上角扫一扫】扫下面这张码(日志里可实时扫):\n")
+        print("\n请用【学习通 App -> 右上角扫一扫】扫描二维码图片(上面的链接/运行摘要里的图片最方便):\n")
         print(ascii_qr(png))
         print("\n扫完请在手机上点【确认登录】。等待中...(最多 %d 秒)" % timeout)
 
@@ -189,6 +345,8 @@ def qr_login(timeout: int, show_ascii: bool, print_cookie: bool) -> int:
             print("[qr_login] 手机上取消了, 重新生成二维码…")
             uuid, enc, png = fetch_qr(session)
             qr_path.write_bytes(png)
+            url = upload_qr(png) if upload else ""
+            publish_qr(url, qr_path)
             if show_ascii:
                 print(ascii_qr(png))
             print("[qr_login] 请重新扫码(最多 %d 秒)" % max(0, int(deadline - time.time())))
@@ -199,6 +357,8 @@ def qr_login(timeout: int, show_ascii: bool, print_cookie: bool) -> int:
                 last_note = note
             uuid, enc, png = fetch_qr(session)
             qr_path.write_bytes(png)
+            url = upload_qr(png) if upload else ""
+            publish_qr(url, qr_path)
             if show_ascii:
                 print(ascii_qr(png))
         time.sleep(2)
@@ -211,20 +371,41 @@ def qr_login(timeout: int, show_ascii: bool, print_cookie: bool) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="学习通扫码登录(cookie 落地)")
     parser.add_argument("--timeout", type=int, default=300, help="等待扫码的秒数, 默认 300")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--prepare", action="store_true",
+                      help="只生成二维码/上传/写运行摘要, 立刻结束(供 CI 分两步使用)")
+    mode.add_argument("--wait", action="store_true",
+                      help="读取上一次 --prepare 的状态, 等待扫码确认并落地 cookies.txt")
     parser.add_argument("--no-ascii", action="store_true", help="不打印 ASCII 二维码")
     parser.add_argument("--print-cookie", action="store_true",
                         help="成功后打印 cookie 字符串(建议只在本地跑时使用)")
     parser.add_argument("--write-cookie", metavar="COOKIE",
                         help="不扫码, 直接把 cookie 字符串写入 cookies.txt")
+    parser.add_argument("--no-upload", action="store_true",
+                        help="不把二维码上传到匿名图床(默认上传, 方便在运行摘要里直接扫)")
     args = parser.parse_args()
 
     if args.write_cookie:
         return write_cookie_string(args.write_cookie)
+    if args.prepare:
+        try:
+            return prepare(f"最多 {args.timeout} 秒内有效", not args.no_upload, not args.no_ascii)
+        except Exception as exc:                       # noqa: BLE001
+            print(f"[qr_login] 生成二维码失败: {exc}", file=sys.stderr)
+            return 2
+    if args.wait:
+        try:
+            return wait_for_scan(max(10, args.timeout), not args.no_upload,
+                                 not args.no_ascii, args.print_cookie)
+        except Exception as exc:                       # noqa: BLE001
+            print(f"[qr_login] 等待扫码失败: {exc}", file=sys.stderr)
+            return 2
     if os.environ.get("CHAOXING_COOKIE") and not args.print_cookie:
         # 没显式要求扫码时, 若环境里已经给了 cookie, 直接落地更省事
         return write_cookie_string(os.environ["CHAOXING_COOKIE"])
     try:
-        return qr_login(max(10, args.timeout), not args.no_ascii, args.print_cookie)
+        return qr_login(max(10, args.timeout), not args.no_ascii, args.print_cookie,
+                        upload=not args.no_upload)
     except Exception as exc:                       # noqa: BLE001
         print(f"[qr_login] 失败: {exc}", file=sys.stderr)
         return 2

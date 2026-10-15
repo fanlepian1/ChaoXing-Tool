@@ -166,3 +166,4 @@ pip-ephem-wheel-cache*/
 
 # 登录产物(扫码登录生成的会话 cookie 与二维码)
 qr.png
+qr_state.json
