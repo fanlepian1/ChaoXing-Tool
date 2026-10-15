@@ -1,6 +1,6 @@
 ##
 # @Author: SocialSisterYi
-# @Edit: Samueli924
+# 字体混淆表(本地维护)
 # @Reference: https://github.com/SocialSisterYi/xuexiaoyi-to-xuexitong-tampermonkey-proxy
 #
 

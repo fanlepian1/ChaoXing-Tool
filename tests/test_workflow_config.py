@@ -174,10 +174,28 @@ class TestWorkflowFile(unittest.TestCase):
             self.assertIn(rel, self.text, f"workflow 引用的 {rel} 不在文件里")
 
     def test_cannot_retrigger_itself(self):
-        # 题库回写会 push, 必须同时满足: 提交信息带 [skip ci] + push 事件忽略 tiku/**
+        # 题库回写的提交信息仍带 [skip ci](万一以后重新打开 push 触发, 也不会自激循环)
         self.assertIn("[skip ci]", self.text)
-        self.assertIn("paths-ignore", self.text)
-        self.assertIn("'tiku/**'", self.text)
+        # 已按用户要求关闭自动触发: 只有手动 Run workflow 才跑
+        self.assertNotIn("\n  push:\n", self.text)
+        self.assertIn("# push:", self.text)
+        # paths-ignore 只对 push 触发有意义, 关闭 push 之后不再要求它存在
+        self.assertNotIn("paths-ignore", self.text)
+
+    def test_parallel_runs_with_serialized_writeback(self):
+        """刷课可以并行跑; 只有"写题库"这件事必须串行(否则互相覆盖/提交冲突)。"""
+        self.assertNotIn("\nconcurrency:\n", self.text)          # 顶层不再串行排队
+        self.assertIn("group: tiku-writeback", self.text)          # 回写单独串行
+        self.assertIn("SpeedRun:", self.text)
+        self.assertIn("WriteBack:", self.text)
+        self.assertIn("needs: SpeedRun", self.text)
+        self.assertIn("if: always()", self.text)
+        # 作业级 concurrency 是缩进形式(4 空格); 顶层那种顶格写法必须不存在
+        self.assertNotIn("\nconcurrency:\n", self.text)
+        self.assertIn("\n    concurrency:\n", self.text)
+        # 回写作业必须带重试, 避免并行运行时互相顶掉
+        self.assertIn("git push origin \"HEAD:${GITHUB_REF_NAME}\"", self.text)
+        self.assertIn("推送失败, 3 秒后重试", self.text)
 
     def test_cache_save_is_guarded(self):
         # actions/cache/save 在文件不存在时会直接失败, 所以回写步骤必须先保证文件存在

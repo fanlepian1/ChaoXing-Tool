@@ -1,13 +1,13 @@
 name: 刷课
 
 on:
-  push:
-    branches: [ main ]
-    # 题库/缓存的回写提交不触发刷课, 防止 Actions 自己把自己叫起来
-    paths-ignore:
-      - 'tiku/**'
-      - '**.md'
-  # 定时刷课: 默认关闭(保持你原来的设置)。要每天自动刷就把下面两行前面的 # 去掉。
+  # ============ 只手动触发 ============
+  # 提交/推送代码不会再自动跑 Actions(题库回写的提交也不会), 只有你在 Actions 页面点
+  # "Run workflow" 才会执行。想改回"推送就自动刷", 把下面的 push 段取消注释即可。
+  # push:
+  #   branches: [ main ]
+
+  # 定时刷课同样默认关闭; 需要每天自动跑就把下面两行前面的 # 去掉。
   # 注意 cron 用 UTC: "0 0 * * *" = 北京时间每天 08:00
   #schedule:
   #  - cron: "0 0 * * *"
@@ -44,17 +44,13 @@ on:
         required: false
         default: 'false'
 
-# 同一分支只跑一个任务, 避免两次运行同时写题库
-concurrency:
-  group: chaoxing-${{ github.ref }}
-  cancel-in-progress: false
-
 # 回写 tiku/ 下的题库与缓存需要写权限
 permissions:
   contents: write
 
 jobs:
-  Start:
+  # 刷课本体: 多个运行可以同时跑(不再排队)
+  SpeedRun:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     env:
@@ -137,27 +133,6 @@ jobs:
           python scripts/tiku_tool.py lookup -q "以下哪个是网络层协议？" || true
           echo "干跑结束: 配置与题库都可用, 去掉 dry_run 即可真正刷课"
 
-      - name: 题库回写(缓存合并进 tiku/bank.json)
-        if: always()
-        run: |
-          mkdir -p tiku
-          [ -f tiku/cache.json ] || echo '{}' > tiku/cache.json
-          python scripts/tiku_tool.py export --cache tiku/cache.json --bank tiku/bank.json
-
-      - name: 把题库/缓存提交回仓库
-        if: always()
-        run: |
-          if [ -z "$(git status --porcelain tiku/)" ]; then
-            echo "题库无变化, 无需提交"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tiku/
-          git commit -m "chore(tiku): 自动回写题库与答案缓存 [skip ci]"
-          git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
-          git push origin "HEAD:${GITHUB_REF_NAME}"
-
       - name: 运行摘要(题目命中情况一目了然)
         if: always()
         run: |
@@ -181,6 +156,14 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: 上传题库/缓存给回写作业(并行运行时由回写作业串行合并)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiku-state-${{ github.run_id }}
+          path: tiku/
+          if-no-files-found: ignore
+
       - name: 上传运行日志
         if: always()
         uses: actions/upload-artifact@v4
@@ -192,3 +175,55 @@ jobs:
       - name: 失败时输出日志尾部
         if: failure()
         run: tail -n 100 chaoxing.log || true
+
+
+  # 题库回写: 唯一需要串行的部分 —— 多个刷课运行同时结束时, 这里排队把答案合并回题库并提交
+  WriteBack:
+    needs: SpeedRun
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: tiku-writeback
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - name: 拷贝代码
+        uses: actions/checkout@v4
+
+      - name: 取回刷课产生的题库状态
+        uses: actions/download-artifact@v4
+        with:
+          name: tiku-state-${{ github.run_id }}
+          path: tiku/
+
+      - name: 设置python环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: 缓存合并进题库
+        run: |
+          mkdir -p tiku
+          [ -f tiku/cache.json ] || echo '{}' > tiku/cache.json
+          python scripts/tiku_tool.py export --cache tiku/cache.json --bank tiku/bank.json
+
+      - name: 提交并推送(带重试, 避免与并行运行互相顶掉)
+        run: |
+          if [ -z "$(git status --porcelain tiku/)" ]; then
+            echo "题库无变化, 无需提交"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tiku/
+          git commit -m "chore(tiku): 自动回写题库与答案缓存 [skip ci]"
+          for i in 1 2 3 4 5; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              echo "推送成功(第 $i 次)"; exit 0
+            fi
+            echo "推送失败, 3 秒后重试($i/5)"; sleep 3
+          done
+          echo "::warning::题库回写推送失败, 但刷课本身已完成"; exit 0

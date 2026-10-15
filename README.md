@@ -1,8 +1,8 @@
 <p align="center">
-  <a href="https://www.springing.top" target="blank">
+  <a href="https://github.com/fanlepian1/SuperStar" target="blank">
     <img src="images/logo.png" alt="Logo" width="156" height="156">
   </a>
-  <h2 align="center" style="font-weight: 600">Spring-Superstar</h2>
+  <h2 align="center" style="font-weight: 600">SuperStar</h2>
   <p align="center">
     学习通在线刷课脚本 超星 学习通 云端刷课
   </p>
@@ -10,25 +10,26 @@
 
 本项目宗旨是帮助大学生们解放双手，根据教程操作后就可以完成刷课，简单易懂，仅需手机就可以使用
 
->如果本项目对希望各位同学们给本仓库点一个免费的Star或者给小春子点一个Follow 谢谢大家！
+>如果本项目对你有帮助，欢迎给本仓库点一个免费的 Star。
 
 ![截图](/images/star.png)
 
 ## 用前必读必读！
-默认fork仓库之后是公开的状态，也就是说你的账号和密码是处于一个明文状态！！很危险！！建议把仓库权限改为私有
+默认创建的仓库是公开状态，也就是说你的账号和密码会处于明文状态！！很危险！！建议把仓库权限改为私有
 
 之前本仓库就因为明文账号密码泄露导致一些同学账号被盗拿来恶作剧(不得不说世界上还是坏人多)，故提前在此说明，希望大家周知
 
 ## 快速开始
 
-<a href="https://blog.springing.top/p/20241119/" target="blank">点击我查看操作说明</a>
-
-<a href="https://github.com/Samueli924/chaoxing" target="blank">灵感来源</a>
+1. 把仓库设为 **私有**（`Settings → General → Danger Zone → Change visibility`），避免账号密码以明文形式暴露；
+2. 在 `Settings → Secrets and variables → Actions` 里添加 `CHAOXING_USERNAME`、`CHAOXING_PASSWORD`（题库相关 secret 见下文）；
+3. 打开 `Actions` → 选「刷课」→ 点 `Run workflow` 即可跑一轮（**只有手动触发才会运行**：推送代码、题库回写提交都不会自动跑）；第一次建议把 `submit` 留空（只搜答案不提交）；
+4. 想看更细的配置与题库用法，继续读下面的「题库接入(GitHub Actions 版)」。
 
 ## 题库接入(GitHub Actions 版)
 
-这个仓库在 Samueli924/chaoxing 的基础上补上了一整套**可自动积累的题库**，并且把配置全部走 secrets，
-不需要把账号密码写进仓库。
+本仓库内置了一整套**可自动积累的题库**，并且把全部配置走 secrets，不需要把账号密码写进仓库。
+仓库地址：https://github.com/fanlepian1/SuperStar
 
 ### 1. 它解决了什么
 
@@ -54,8 +55,17 @@
 跑完之后在运行详情页最上方能看到 **“本次运行摘要”**（题库条数、是否启用、章节检测覆盖率、命中日志摘录），
 日志本身也能在 Artifacts 里下载。
 
-想每天定时自动跑：把 `.github/workflows/main.yml` 里 `#schedule:` 那两行的 `#` 去掉
+需要定时或"推送就自动跑"：打开 `.github/workflows/main.yml`，把 `#schedule:` 或 `# push:` 段的 `#` 去掉即可
 （cron 用 UTC，`0 0 * * *` = 北京时间 08:00）。
+
+### 2.1 并行运行（多个 Run workflow 同时跑）
+
+* **刷课本体（`SpeedRun`）不再排队**：你可以同时点好几次 `Run workflow`（例如填不同的 `course_list`），
+  它们会并行执行；
+* **只有"回写题库"那一步（`WriteBack`）会排队**：多个运行同时结束时，答案合并回 `tiku/bank.json`
+  与提交按顺序进行，避免互相覆盖、提交冲突（这一步带自动重试）；
+* 提醒：并行运行默认用的是同一套 secrets，也就是**同一个学习通账号**——同一账号同时跑两轮，
+  平台有可能把前一个会话顶下线。想真正跑多个账号，建议各自开一个仓库（或各自一套 secrets）后再并行。
 
 ### 3. 需要在仓库里配置的 Secrets
 
