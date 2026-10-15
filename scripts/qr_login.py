@@ -242,6 +242,9 @@ def wait_for_scan(timeout: int, upload: bool, show_ascii: bool, print_cookie: bo
         return new_uuid, new_enc
 
     confirmed, _ = poll_loop(session, uuid, enc, timeout, refresh)
+    if not confirmed and session.cookies.get("_uid"):
+        print("[qr_login] 轮询未见确认, 但会话里已有 _uid: 按登录成功处理")
+        confirmed = True
     if not confirmed:
         print("[qr_login] 等待超时。若你确实扫了码, 请看上面的『扫码状态变化』日志:\n"
               "         停在『已扫码, 等待手机确认』= 手机上没点【确认登录】;\n"
@@ -263,10 +266,34 @@ def poll_once(session: requests.Session, uuid: str, enc: str) -> dict:
                        data={"enc": enc, "uuid": uuid,
                              "doubleFactorLogin": "", "forbidotherlogin": ""},
                        timeout=20)
+    body = res.content
+    for encoding in ("utf-8-sig", "utf-8", "gbk"):
+        try:
+            text = body.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        text = body.decode("utf-8", errors="replace")
     try:
-        return res.json()
+        data = json.loads(text.lstrip("\ufeff"))
+        if isinstance(data, dict):
+            return data
+        return {"status": False, "type": -1, "mes": f"返回不是对象: {text[:120]}",
+                "raw_status": res.status_code, "raw_head": text[:200]}
     except ValueError:
-        return {"status": False, "type": -1, "mes": "返回内容不是 JSON"}
+        # 关键诊断信息: 之前这里把原始返回丢掉了, 导致"扫了但确认失败"完全看不见
+        return {
+            "status": False,
+            "type": -1,
+            "mes": "返回内容不是 JSON",
+            "raw_body": text[:20000],
+            "raw_status": res.status_code,
+            "raw_content_type": res.headers.get("Content-Type", ""),
+            "raw_location": res.headers.get("Location", ""),
+            "raw_head": text[:200],
+            "has_uid_cookie": bool(session.cookies.get("_uid")),
+        }
 
 
 def save_cookie_file(session: requests.Session) -> str:
@@ -298,13 +325,11 @@ def write_cookie_string(raw: str) -> int:
     return 0
 
 
+# 4/6/7 来自登录页 JS 里的 switch(type); 3 是实测的"未登录/等待扫码"。
+# 其他 type 的含义没有可靠依据就不猜 —— 统一用 mes 字段说明(实测 type=2 时 mes=二维码已失效)。
 SCAN_STATE_TEXT = {
-    "0": "等待扫码",
-    "1": "等待扫码",
-    "2": "已扫码, 等待手机确认",
     "3": "等待扫码",
     "4": "已扫码, 等待手机确认",
-    "5": "已确认",
     "6": "手机上已取消",
     "7": "二维码失效/出错",
 }
@@ -329,11 +354,12 @@ def describe_state(data: dict) -> str:
     return f"type={kind or '?'}" + (", " + ", ".join(notes) if notes else "")
 
 
-def poll_loop(session, uuid, enc, timeout: int, on_refresh=None):
+def poll_loop(session, uuid, enc, timeout: int, on_refresh=None, max_refresh: int = 5):
     """轮询扫码状态: 处理 已扫码/取消/失效, 返回 (是否确认, 最后一次返回)。"""
     deadline = time.time() + timeout
     last_state = None
     polls = 0
+    refreshes = 0
     while time.time() < deadline:
         data = poll_once(session, uuid, enc)
         polls += 1
@@ -341,18 +367,51 @@ def poll_loop(session, uuid, enc, timeout: int, on_refresh=None):
         if state != last_state:
             print(f"[qr_login] 扫码状态变化: {describe_state(data)}   (原始返回 {data})")
             last_state = state
+            if str(data.get("type", "")) == "4":
+                # 这一步 90% 的失败都是"扫了但没点确认": 反复强调
+                print("[qr_login] " + "=" * 60)
+                print(f"[qr_login] 已识别到你的账号: {data.get('nickname', '')}"
+                      f"(uid={data.get('uid', '')})")
+                print("[qr_login] 现在请在你手机上点【确认登录】那个按钮 —— "
+                      "只扫不点确认, 服务器不会放行, 二维码到时间就会失效")
+                print("[qr_login] " + "=" * 60)
         elif polls % 10 == 0:
             print(f"[qr_login] 仍在等待({describe_state(data)}) 剩余 {max(0, int(deadline - time.time()))} 秒")
 
-        if data.get("status"):
+        # 非 JSON 响应: 把原始信息摊开, 并检查是不是"其实已经登录"(会话里种下了 _uid)
+        if str(data.get("type", "")) == "-1":
+            print(f"[qr_login] 服务器返回非 JSON: HTTP {data.get('raw_status')}, "
+                  f"Content-Type={data.get('raw_content_type')!r}, "
+                  f"Location={data.get('raw_location')!r}, 正文开头={data.get('raw_head')!r}")
+            body = data.get("raw_body")
+            if body:
+                try:
+                    (ROOT / "qr_response.html").write_text(body, encoding="utf-8", errors="replace")
+                    print("[qr_login] 已把这次响应正文存到 qr_response.html 便于排查")
+                except OSError as exc:
+                    print(f"[qr_login] 保存响应正文失败: {exc}")
+            if session.cookies.get("_uid"):
+                print("[qr_login] 会话里已经出现 _uid, 判定为登录成功 ✓")
+                return True, data
+
+        if data.get("status") or session.cookies.get("_uid"):
             return True, data
         kind = str(data.get("type", ""))
-        if kind in ("6", "7"):
-            reason = "手机上取消了" if kind == "6" else "二维码失效/出错"
-            print(f"[qr_login] {reason}, 换成新二维码…")
+        mes = str(data.get("mes") or "")
+        expired = any(word in mes for word in ("失效", "过期", "expired"))
+        if kind in ("6", "7") or expired:
+            reason = "手机上取消了" if kind == "6" else "二维码失效/过期"
+            refreshes += 1
+            if refreshes > max_refresh:
+                print(f"[qr_login] 已经换了 {max_refresh} 次二维码仍未成功, 先停下来"
+                      f"(频繁换码容易被风控)。请改用 cookie 方式: "
+                      f"本地跑一次 main.py 登录, 再用 --export-cookie 导出到 secret。",
+                      file=sys.stderr)
+                return False, None
+            print(f"[qr_login] {reason}, 自动换成新二维码…({refreshes}/{max_refresh})")
             if on_refresh:
                 uuid, enc = on_refresh()
-        time.sleep(2)
+        time.sleep(3)
     return False, None
 
 
@@ -399,12 +458,25 @@ def main() -> int:
                         help="成功后打印 cookie 字符串(建议只在本地跑时使用)")
     parser.add_argument("--write-cookie", metavar="COOKIE",
                         help="不扫码, 直接把 cookie 字符串写入 cookies.txt")
+    parser.add_argument("--export-cookie", action="store_true",
+                        help="不扫码, 直接把 cookies.txt 里的 cookie 打印出来(存进 CHAOXING_COOKIE)")
     parser.add_argument("--no-upload", action="store_true",
                         help="不把二维码上传到匿名图床(默认上传, 方便在运行摘要里直接扫)")
     args = parser.parse_args()
 
     if args.write_cookie:
         return write_cookie_string(args.write_cookie)
+    if args.export_cookie:
+        if not COOKIE_FILE.exists():
+            print(f"[qr_login] 找不到 {COOKIE_FILE}(先本地跑一次 main.py 登录, 或扫码成功后就有)",
+                  file=sys.stderr)
+            return 1
+        text = COOKIE_FILE.read_text(encoding="utf-8-sig").strip()
+        names = [item.split("=", 1)[0] for item in text.split(";") if "=" in item]
+        print(f"[qr_login] cookies.txt 里有 {len(names)} 项: {', '.join(names)}")
+        print("[qr_login] 把下面这一行原样存进 secret CHAOXING_COOKIE(仓库 Settings -> Secrets):")
+        print(text)
+        return 0
     if args.prepare:
         try:
             return prepare(f"最多 {args.timeout} 秒内有效", not args.no_upload, not args.no_ascii)
