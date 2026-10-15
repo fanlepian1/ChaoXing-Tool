@@ -458,10 +458,5 @@
     "answer": "七大",
     "type": "single",
     "source": "网络整理(党史)"
-  },
-  "题目A": {
-    "answer": "A",
-    "source": "cache:cache.json",
-    "auto_answer": "A"
   }
 }
