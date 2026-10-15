@@ -301,10 +301,17 @@ def resolve_tiku_config(file_config: dict = None, args=None, env: dict = None) -
     for key, value in (file_config or {}).items():
         if value is None:
             continue
-        if isinstance(value, str) and not value.strip():
-            # 配置文件里的空值(模板里大量存在)不应该覆盖掉默认值
-            continue
-        conf[key] = value.strip() if isinstance(value, str) else value
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                # 配置文件里的空值(模板里大量存在):
+                #  - 键必须保留: AI 等 provider 会硬索引 http_proxy 这类键, 键缺失会让它初始化失败;
+                #  - 但不覆盖已有默认值(例如 cache_file 仍用默认路径)。
+                conf.setdefault(key, "")
+                continue
+            conf[key] = text
+        else:
+            conf[key] = value
     conf.update(collect_tiku_config_from_env(env))
     if args is not None:
         conf.update(build_tiku_config_from_args(args))

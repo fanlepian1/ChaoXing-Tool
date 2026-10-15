@@ -283,7 +283,12 @@ class Tiku:
                 return answer
             logger.warning(f"缓存中的答案与本题类型不符, 已忽略并重新搜题："
                            f"{q_info['title']} -> {answer}")
-        answer = self._query(q_info)
+        try:
+            answer = self._query(q_info)
+        except Exception as e:
+            # 题库偶发异常(网络抖动/接口 4xx5xx)只应算作「本题没搜到」, 不能中断整轮刷课
+            logger.error(f'从{self.name}获取答案时异常，已按未命中处理：{e}')
+            answer = None
         if answer:
             answer = answer.strip()
             logger.info(f"从{self.name}获取答案：{q_info['title']} -> {answer}")
@@ -504,7 +509,12 @@ class TikuYanxi(Tiku):
         return None
 
     def load_token(self):
-        token_list = self._conf['tokens'].split(',')
+        token_list = str(self._conf.get('tokens') or '').split(',')
+        token_list = [item.strip() for item in token_list if item.strip()]
+        if not token_list:
+            logger.error(f'{self.name}未配置 tokens, 已停用该题库')
+            self.DISABLE = True
+            return
         if self._token_index == len(token_list):
             # TOKEN 用完
             logger.error('TOKEN用完, 请自行更换再重启脚本')
@@ -1048,7 +1058,12 @@ class TikuAdapter(Tiku):
 
     def _init_tiku(self):
         # self.load_token()
-        self.api = self._conf['url']
+        self.url = str(self._conf.get('url') or '').strip()
+        if not self.url:
+            logger.error(f'{self.name}未配置 url, 已停用该题库')
+            self.DISABLE = True
+            return
+        self.api = self.url
 
 class AI(Tiku):
     # AI大模型答题实现
@@ -1078,6 +1093,18 @@ class AI(Tiku):
                 time.sleep(sleep_time)
 
     def _query(self, q_info: dict):
+        """带兜底的入口: 大模型调用失败(404/401/超时/额度)只算本题没搜到, 不能把整轮刷课带崩。"""
+        try:
+            return self._query_impl(q_info)
+        except Exception as e:
+            logger.error(
+                f'{self.name}查询异常(已跳过本题): {e}\n'
+                f'  常见原因: endpoint 不是 base_url(应填 .../v1)、key 无效、模型名不对、'
+                f'额度不足、网络/代理不通'
+            )
+            return None
+
+    def _query_impl(self, q_info: dict):
         def remove_md_json_wrapper(md_str):
             # 使用正则表达式匹配Markdown代码块并提取内容
             pattern = r'^\s*```(?:json)?\s*(.*?)\s*```\s*$'
@@ -1177,11 +1204,28 @@ class AI(Tiku):
             return None
 
     def _init_tiku(self):
-        self.endpoint = self._conf['endpoint']
-        self.key = self._conf['key']
-        self.model = self._conf['model']
-        self.http_proxy = self._conf['http_proxy']
-        self.min_interval_seconds = int(self._conf['min_interval_seconds'])
+        # 容错读取: 缺任何一个键都不再抛 KeyError 把整个 provider 从回退链里踢掉
+        self.endpoint = str(self._conf.get('endpoint') or '').strip()
+        self.key = str(self._conf.get('key') or '').strip()
+        self.model = str(self._conf.get('model') or '').strip()
+        self.http_proxy = str(self._conf.get('http_proxy') or '').strip() or None
+        try:
+            self.min_interval_seconds = int(self._conf.get('min_interval_seconds') or 3)
+        except (TypeError, ValueError):
+            self.min_interval_seconds = 3
+        # 兼容两种写法: base_url(推荐, 如 https://xxx/v1) 与完整地址(.../v1/chat/completions)
+        # OpenAI SDK 会在 base_url 后面自己拼 /chat/completions, 填完整地址会变成双重路径 -> 404
+        if self.endpoint.endswith('/chat/completions'):
+            self.endpoint = self.endpoint[: -len('/chat/completions')]
+            logger.warning(f'{self.name} 的 endpoint 填成了完整地址, 已自动去掉 /chat/completions: '
+                           f'{self.endpoint}')
+        missing = [name for name, value in (('endpoint', self.endpoint), ('key', self.key),
+                                            ('model', self.model)) if not value]
+        if missing:
+            logger.error(f'{self.name}配置缺少 {", ".join(missing)}, 已停用该题库'
+                         f'(endpoint 要填 OpenAI 兼容的 base_url, 例如 https://xxx/v1)')
+            self.DISABLE = True
+            return
 
     def check_llm_connection(self) -> bool:
         """
@@ -1306,7 +1350,11 @@ class SiliconFlow(Tiku):
     def _init_tiku(self):
         # 从配置文件读取参数
         self.api_endpoint = self._conf.get('siliconflow_endpoint', 'https://api.siliconflow.cn/v1/chat/completions')
-        self.api_key = self._conf['siliconflow_key']
+        self.api_key = str(self._conf.get('siliconflow_key') or '').strip()
+        if not self.api_key:
+            logger.error(f'{self.name}未配置 siliconflow_key, 已停用该题库')
+            self.DISABLE = True
+            return
 
         self.model_name = self._conf.get('siliconflow_model', 'deepseek-ai/DeepSeek-V3')
 

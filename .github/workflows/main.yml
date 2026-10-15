@@ -126,14 +126,6 @@ jobs:
           curl -fsSL "${{ github.event.inputs.bank_url }}" -o /tmp/import_bank
           python scripts/tiku_tool.py import --bank tiku/bank.json --input /tmp/import_bank
 
-      - name: 恢复题库缓存(备份手段)
-        uses: actions/cache/restore@v4
-        with:
-          path: tiku/cache.json
-          key: tiku-cache-${{ github.run_id }}
-          restore-keys: |
-            tiku-cache-
-
       - name: 运行刷课
         if: ${{ github.event.inputs.dry_run != 'true' }}
         run: python main.py --config config.ini -u "$CHAOXING_USERNAME" -p "$CHAOXING_PASSWORD" -l "$CHAOXING_COURSE_LIST"
@@ -165,13 +157,6 @@ jobs:
           git commit -m "chore(tiku): 自动回写题库与答案缓存 [skip ci]"
           git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
           git push origin "HEAD:${GITHUB_REF_NAME}"
-
-      - name: 再次保存题库缓存(备份手段)
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: tiku/cache.json
-          key: tiku-cache-${{ github.run_id }}
 
       - name: 运行摘要(题目命中情况一目了然)
         if: always()
