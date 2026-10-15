@@ -192,6 +192,6 @@ python main.py -u 手机号 -p 密码 --tiku-provider TikuLocal,TikuGo --tiku-lo
 第一次用 `python main.py --help` 可以看到全部 `--tiku-*` 参数。
 
 ## 赞助
->如果觉着代码对你有帮助，可以赞赏一下开发者
+>如果觉着代码对你有帮助，可以扫码赞赏一下
 
-![截图](/images/reward.jpg)
+![赞赏码](/images/reward.png)
