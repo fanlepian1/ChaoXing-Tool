@@ -226,6 +226,47 @@ def load_state():
     return session, data["uuid"], data["enc"]
 
 
+CHECK_URL = "https://mooc1.chaoxing.com/visit/courselistdata"
+
+
+def check_cookie(raw: str = "") -> int:
+    """验证 cookie 是否仍然有效: 请求课程列表接口, 能拿到课程/未跳登录即有效。"""
+    text = str(raw or "").strip()
+    if not text:
+        if COOKIE_FILE.exists():
+            text = COOKIE_FILE.read_text(encoding="utf-8-sig").strip()
+        else:
+            text = str(os.environ.get("CHAOXING_COOKIE") or "").strip()
+    if not text:
+        print("[qr_login] 没有 cookie 可查: 先 --browser 登录, 或用 --write-cookie 写入", file=sys.stderr)
+        return 1
+
+    session = make_session()
+    for item in text.replace("\n", ";").split(";"):
+        item = item.strip()
+        if "=" in item:
+            key, value = item.split("=", 1)
+            session.cookies.set(key.strip(), value.strip(), domain=".chaoxing.com")
+
+    print(f"[qr_login] 待检查的 cookie 项: {', '.join(k for k, _ in session.cookies.items())}")
+    try:
+        res = session.get(CHECK_URL, timeout=25, allow_redirects=False)
+    except Exception as exc:                       # noqa: BLE001
+        print(f"[qr_login] 请求失败: {exc}", file=sys.stderr)
+        return 2
+
+    body = res.text[:4000]
+    logged_in = res.status_code == 200 and ("登录" not in body[:200]) and (
+        "course" in body.lower() or "课程" in body or body.strip().startswith("[") or "{" in body)
+    print(f"[qr_login] HTTP {res.status_code}, 正文长度 {len(res.text)}, 开头: {body[:120]!r}")
+    if logged_in:
+        print("[qr_login] 结论: cookie 有效 ✓ (能取到数据, 没有被踢回登录页)")
+        return 0
+    print("[qr_login] 结论: cookie 可能已过期/不完整(被跳走或返回登录相关页面)。"
+          "重新用 --browser 登录一次再导出。", file=sys.stderr)
+    return 1
+
+
 def browser_login(timeout: int, headless: bool, print_cookie: bool) -> int:
     """用真实浏览器完成登录(扫码或账号密码都行), 然后导出 cookie。
 
@@ -276,7 +317,12 @@ def browser_login(timeout: int, headless: bool, print_cookie: bool) -> int:
 
         deadline = time.time() + timeout
         while time.time() < deadline:
-            cookies = {item["name"]: item["value"] for item in context.cookies()}
+            try:
+                cookies = {item["name"]: item["value"] for item in context.cookies()}
+            except Exception as exc:                       # noqa: BLE001
+                print(f"[qr_login] 浏览器窗口被关闭或崩溃了({type(exc).__name__}), 结束。"
+                      f"重跑时请不要关那个窗口, 或者在窗口里直接登录完再关。", file=sys.stderr)
+                return 1
             if cookies.get("_uid"):
                 text = ";".join(f"{k}={v}" for k, v in cookies.items())
                 COOKIE_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -289,7 +335,11 @@ def browser_login(timeout: int, headless: bool, print_cookie: bool) -> int:
                     print(text)
                 browser.close()
                 return 0
-            page.wait_for_timeout(1000)
+            try:
+                page.wait_for_timeout(1000)
+            except Exception as exc:                       # noqa: BLE001
+                print(f"[qr_login] 页面已关闭({type(exc).__name__}), 结束。", file=sys.stderr)
+                return 1
 
         print("[qr_login] 等待超时: 没检测到登录成功。", file=sys.stderr)
         browser.close()
@@ -594,6 +644,8 @@ def main() -> int:
                         help="成功后打印 cookie 字符串(建议只在本地跑时使用)")
     parser.add_argument("--write-cookie", metavar="COOKIE",
                         help="不扫码, 直接把 cookie 字符串写入 cookies.txt")
+    parser.add_argument("--check-cookie", metavar="COOKIE", nargs="?", const="",
+                        help="检查 cookies.txt(或参数里的) cookie 是否还有效")
     parser.add_argument("--browser", action="store_true",
                         help="用真实浏览器登录(扫码/密码都行)再导出 cookie —— 最可靠, 需先装 playwright")
     parser.add_argument("--headless", action="store_true",
@@ -608,6 +660,8 @@ def main() -> int:
 
     if args.write_cookie:
         return write_cookie_string(args.write_cookie)
+    if args.check_cookie is not None:
+        return check_cookie(args.check_cookie)
     if args.browser:
         return browser_login(max(30, args.timeout), args.headless, args.print_cookie)
     if args.export_cookie:
