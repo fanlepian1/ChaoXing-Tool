@@ -3,6 +3,7 @@ import argparse
 import configparser
 import enum
 import os
+import pathlib
 import sys
 import threading
 import time
@@ -809,17 +810,45 @@ def _split_course_ids(raw) -> list:
     return out
 
 
+def mask_proof(value) -> str:
+    """把数字串变成"不会被 GitHub secret 打码"的形式: 每 3 位插一个空格。
+
+    GitHub 会把日志里**连续等于某个 secret 值**的文本替换成 ***; 插了空格就不是连续子串了,
+    所以即使这个课程ID恰好和你某个 secret 相同, 你依然能读到它(去掉空格就是原值)。
+    """
+    text = str(value)
+    if not text.isdigit() or len(text) <= 6:
+        return text
+    return " ".join(text[i:i + 3] for i in range(0, len(text), 3))
+
+
 def describe_courses(all_course) -> str:
-    """生成"你的课程表"文本: 课程名 + courseId + classId。"""
-    lines = ["当前账号下的课程列表(把下面列出的 courseId 填进 CHAOXING_COURSE_LIST 即可):"]
+    """生成"你的课程表"文本: 课程名 + courseId + classId(+ 防打码形式)。"""
+    lines = ["当前账号下的课程列表(把 courseId 填进 CHAOXING_COURSE_LIST 即可; "
+             "带空格的写法是给你看的, 复制时去掉空格):"]
     for index, course in enumerate(all_course, 1):
+        cid = course.get("courseId")
+        safe = mask_proof(cid)
+        extra = f"(防打码写法: {safe} -> 实际填 {str(cid).replace(' ', '')})" if safe != str(cid) else ""
         lines.append(
             f"  {index}. {course.get('title', '(无标题)')}\n"
-            f"      courseId = {course.get('courseId')}    classId = {course.get('classId')}"
+            f"      courseId = {cid} {extra}\n"
+            f"      classId = {course.get('classId')}"
         )
     if len(all_course) == 0:
         lines.append("  (没有取到任何课程: 账号没选课, 或登录态有问题)")
     return "\n".join(lines)
+
+
+def write_course_table(all_course) -> str:
+    """把课程表写进文件(工作流里当 artifact 上传; artifact 内容不会被打码)。"""
+    path = pathlib.Path("courses.txt")
+    try:
+        path.write_text(describe_courses(all_course), encoding="utf-8")
+        return str(path)
+    except OSError as exc:
+        logger.warning(f"写课程表文件失败: {exc}")
+        return ""
 
 
 def filter_courses(all_course, course_list):
@@ -917,6 +946,9 @@ def main():
         # 只要课程表(--list-courses): 登录后打印出来就退出, 方便抄正确的 ID
         if common_config.get("list_courses"):
             logger.info(describe_courses(all_course))
+            table_path = write_course_table(all_course)
+            if table_path:
+                logger.info(f"课程表已写入 {table_path}(工作流里会作为 artifact 上传, 内容不做打码)")
             return
 
         # 过滤要学习的课程

@@ -223,6 +223,7 @@ jobs:
           path: |
             chaoxing.log
             qr.png
+            courses.txt
           if-no-files-found: ignore
 
       - name: 失败时输出日志尾部

@@ -16,6 +16,25 @@ from api.exceptions import InputFormatError  # noqa: E402
 from api.answer import Tiku  # noqa: E402
 
 
+class TestMaskProofCourseIds(unittest.TestCase):
+    """课程ID 恰好等于某个 secret 时会 GitHuc 被打码 —— 必须还能读出来。"""
+
+    def test_mask_proof_splits_digits(self):
+        self.assertEqual(main_module.mask_proof("268053034"), "268 053 034")
+        self.assertEqual(main_module.mask_proof("123456789012"), "123 456 789 012")
+
+    def test_short_or_non_digit_kept(self):
+        self.assertEqual(main_module.mask_proof("12345"), "12345")
+        self.assertEqual(main_module.mask_proof("abc-123"), "abc-123")
+        self.assertEqual(main_module.mask_proof(None), "None")
+
+    def test_describe_courses_includes_both_forms(self):
+        text = main_module.describe_courses(
+            [{"courseId": "268053034", "classId": None, "title": "中国共产党历史"}])
+        self.assertIn("268 053 034", text, "必须有防打码写法")
+        self.assertIn("中国共产党历史", text)
+
+
 class TestListCoursesWiring(unittest.TestCase):
     """--list-courses 必须真的生效, 而且不能引用 main() 里不存在的变量。
 
