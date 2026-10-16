@@ -132,6 +132,17 @@ class TestCourseFilter(unittest.TestCase):
         got = main_module.filter_courses(self.COURSES, [2151141])
         self.assertEqual(len(got), 1)
 
+    def test_dirty_values_still_match(self):
+        """真实踩过的脏值: 引号/换行/全角空格/零宽字符/前缀/全角数字 —— 都要能匹配。"""
+        for raw in ('"2151141"', "2151141\r\n", "\u30002151141\u3000", "2151141\u200b",
+                    "id:2151141", "２１５１１４１"):
+            with self.subTest(raw=raw):
+                got = main_module.filter_courses(self.COURSES, raw)
+                self.assertEqual([c["title"] for c in got], ["中国共产党历史"], raw)
+
+    def test_class_id_dirty_value(self):
+        self.assertEqual(len(main_module.filter_courses(self.COURSES, [" 987654 "])), 1)
+
     def test_not_found_error_lists_available_courses(self):
         with self.assertRaises(InputFormatError) as ctx:
             main_module.filter_courses(self.COURSES, ["000000"])

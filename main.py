@@ -3,6 +3,7 @@ import argparse
 import configparser
 import enum
 import os
+import re
 import pathlib
 import sys
 import threading
@@ -829,7 +830,14 @@ def process_course(chaoxing: Chaoxing, course:dict[str, Any], config: dict):
     tqdm.format_sizeof = _old_format_sizeof
 
 def _split_course_ids(raw) -> list:
-    """把用户填的课程ID串拆开: 逗号/中文逗号/换行/空格 都当分隔符, 并去掉空白。"""
+    """把用户填的课程ID串拆成若干候选值。
+
+    三件事都要容忍(全是真实踩过的):
+      1) 逗号/中文逗号/分号/换行/制表/空格 都算分隔符;
+      2) 值里混进引号、全角空格、零宽字符等 —— 去掉;
+      3) 只剩"数字"时也把连续数字段当候选(课程ID 都是纯数字, 例如 9 位的 268053034)。
+         例如填成 `"268053034"`(带引号, 共 11 个字符)也能正确匹配到。
+    """
     if raw is None:
         return []
     if isinstance(raw, (list, tuple)):
@@ -837,13 +845,30 @@ def _split_course_ids(raw) -> list:
         for item in raw:
             items.extend(_split_course_ids(item))
         return items
-    text = str(raw).replace("，", ",").replace(";", ",").replace("；", ",")
+
+    text = str(raw)
+    # 全角数字/字母 -> 半角(中文输入法很容易打出全角, 看着一样但匹配不上)
+    text = text.translate(str.maketrans(
+        "０１２３４５６７８９ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ"
+        "ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ",
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz"))
+    for bad in ("\u200b", "\u200c", "\u200d", "\ufeff", "\u3000", "\u00a0"):
+        text = text.replace(bad, " ")
+    text = text.replace("，", ",").replace("；", ",").replace(";", ",")
     text = text.replace("\r", "\n").replace("\n", ",").replace("\t", ",")
+
     out = []
-    for item in text.split(","):
-        item = item.strip()
-        if item:
-            out.append(item)
+    for chunk in text.split(","):
+        cleaned = chunk.strip().strip("'\"`“”‘’()[]{}")
+        if not cleaned:
+            continue
+        if cleaned not in out:
+            out.append(cleaned)
+        # 再补一个"纯数字"候选: 处理引号之外的杂字符
+        for digits in re.findall(r"\d{6,}", cleaned):
+            if digits not in out:
+                out.append(digits)
     return out
 
 
@@ -927,9 +952,9 @@ def filter_courses(all_course, course_list):
 
     if not course_task:
         # 报错要说清楚: 你填了几个 ID、课程表长什么样 —— 否则用户只能猜(secret 还会被打码)
-        logger.error(f"没匹配到任何课程。你填了 {len(course_list)} 个 ID"
-                     f"(每个长度 {', '.join(str(len(item)) for item in course_list)} 位);"
-                     f" 注意不要把中文逗号/换行/空格混进来, 也不要填课程名")
+        shapes = ", ".join(f"{mask_proof(item)}({len(item)}字符)" for item in course_list)
+        logger.error(f"没匹配到任何课程。解析出的候选 ID: {shapes}\n"
+                     f"  (上面带空格的是防打码写法, 实际值就是去掉空格的样子)")
         logger.error(describe_courses(all_course))
         raise InputFormatError(
             f"未找到指定课程ID(共 {len(course_list)} 个)。"
