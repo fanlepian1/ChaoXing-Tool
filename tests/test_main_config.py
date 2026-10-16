@@ -6,6 +6,7 @@ import os
 import sys
 import tempfile
 import unittest
+import pathlib
 from pathlib import Path
 from unittest import mock
 
@@ -68,6 +69,38 @@ class TestListCoursesWiring(unittest.TestCase):
         logged = " ".join(str(call) for call in fake_logger.info.call_args_list)
         self.assertIn("268053034", logged, "必须把课程表打出来(courseId 要能找到)")
         self.assertIn("中国共产党历史", logged)
+
+
+class TestCredentialHandling(unittest.TestCase):
+    """登录凭据的坑都要有测试: 尾换行 / % 号 / 全角字符 / 命令行传密码。"""
+
+    def test_password_with_percent_can_be_read(self):
+        """ConfigParser 默认会做插值, 密码含 % 会直接崩 —— 必须关掉。"""
+        import configparser
+        import tempfile
+        tmp = pathlib.Path(tempfile.mkdtemp()) / "config.ini"
+        tmp.write_text("[common]\nusername = 13800000000\npassword = ab%c%%(d)123\n",
+                       encoding="utf-8")
+        common, _, _ = main_module.load_config_from_file(tmp)
+        # interpolation=None 时原样读出, 不做任何 %% 转义处理
+        self.assertEqual(common["password"], "ab%c%%(d)123")
+
+    def test_trailing_newline_is_cleaned(self):
+        conf = main_module.sanitize_credentials({"username": "13800000000\r\n",
+                                                 "password": "secret123\n"})
+        self.assertEqual(conf["username"], "13800000000")
+        self.assertEqual(conf["password"], "secret123")
+
+    def test_shape_diagnostic_flags_fullwidth(self):
+        text = main_module._credential_shape("abc％123", "密码")
+        self.assertIn("全角", text)
+        self.assertEqual(main_module._credential_shape("", "密码"), "密码=空")
+
+    def test_workflow_does_not_put_password_on_command_line(self):
+        workflow = (pathlib.Path(__file__).resolve().parent.parent
+                    / ".github" / "workflows" / "main.yml").read_text(encoding="utf-8")
+        self.assertNotIn('-p \"$CHAOXING_PASSWORD\"', workflow,
+                         "密码不能出现在命令行(会被 shell 改坏)")
 
 
 class TestCourseFilter(unittest.TestCase):

@@ -168,7 +168,9 @@ jobs:
           # 扫码 / cookie 登录过就用 cookie；cookie 失效时程序会自动回退到账号密码
           CHAOXING_USE_COOKIES: ${{ steps.login.outputs.mode != 'password' }}
         run: |
-          args="--config config.ini -u \"$CHAOXING_USERNAME\" -p \"$CHAOXING_PASSWORD\" -l \"$CHAOXING_COURSE_LIST\""
+          # 账号密码通过环境变量(gen_config.py 也会写进 config.ini)传给程序:
+          # 放在命令行里会被 shell 引号/特殊字符改坏(密码含 % " \ $ 等字符时尤其危险)
+          args="--config config.ini -l \"$CHAOXING_COURSE_LIST\""
           if [ "${{ steps.login.outputs.mode }}" != "password" ]; then
             args="$args --use-cookies"
           fi
@@ -180,8 +182,8 @@ jobs:
         run: |
           python scripts/tiku_tool.py stats
           echo "--- 课程表(把 courseId 填进 CHAOXING_COURSE_LIST; 也可以留空刷全部课程) ---"
-          python main.py --config config.ini -u "$CHAOXING_USERNAME" -p "$CHAOXING_PASSWORD" \
-            --list-courses ${{ steps.login.outputs.mode != 'password' && '--use-cookies' || '' }} || true
+          python main.py --config config.ini --list-courses \
+            ${{ steps.login.outputs.mode != 'password' && '--use-cookies' || '' }} || true
           echo "干跑结束: 上面就是你的 courseId; 去掉 dry_run 即可真正刷课"
 
       - name: 运行摘要(题目命中情况一目了然)

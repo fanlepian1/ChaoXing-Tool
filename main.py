@@ -148,7 +148,9 @@ def parse_args():
 
 def load_config_from_file(config_path):
     """从配置文件加载设置"""
-    config = configparser.ConfigParser()
+    # interpolation=None: 默认的 BasicInterpolation 会在读到 "%" 时抛异常/读错,
+    # 而密码/token 里完全可能出现 %(我踩过: 密码含 % 直接 LoginError)
+    config = configparser.ConfigParser(interpolation=None)
     config.read(config_path, encoding="utf8")
     
     common_config: dict[str, Any] = {}
@@ -446,8 +448,43 @@ def init_config():
 
 
 
+def _credential_shape(value, name: str) -> str:
+    """脱敏地描述一个凭据的"形状", 用于排查"明明是对的却登录失败"。"""
+    text = "" if value is None else str(value)
+    if not text:
+        return f"{name}=空"
+    flags = []
+    if text != text.strip():
+        flags.append("首尾有空白/换行(已自动去掉)")
+    if any(ord(ch) > 0x2000 for ch in text):
+        flags.append("含全角字符(可能被输入法/复制带进来)")
+    if text != text.lower() and text != text.upper() and any(ch.isalpha() for ch in text):
+        flags.append("含大小写字母")
+    if any(ch.isdigit() for ch in text):
+        flags.append("含数字")
+    return f"{name}长度={len(text)}" + (";" + ";".join(flags) if flags else "")
+
+
+def sanitize_credentials(common_config: dict) -> dict:
+    """去掉用户名/密码的首尾空白与换行(secret 粘贴常见问题), 并打印形状诊断。"""
+    for key in ("username", "password"):
+        raw = common_config.get(key)
+        if raw is None:
+            continue
+        cleaned = str(raw).strip().replace("\r", "").replace("\n", "")
+        if cleaned != str(raw):
+            logger.warning(f"{key} 首尾/内部有换行或空白, 已自动清理"
+                           f"({_credential_shape(raw, key)} -> 长度 {len(cleaned)})")
+        common_config[key] = cleaned
+    logger.info(f"账号信息: {_credential_shape(common_config.get('username'), '用户名')}; "
+                f"{_credential_shape(common_config.get('password'), '密码')}")
+    return common_config
+
+
 def init_chaoxing(common_config, tiku_config):
+    """初始化超星实例(会先清洗账号密码, 并打印脱敏诊断)。"""
     """初始化超星实例"""
+    common_config = sanitize_credentials(dict(common_config))
     username = common_config.get("username", "")
     password = common_config.get("password", "")
     use_cookies = common_config.get("use_cookies", False)
@@ -938,7 +975,16 @@ def main():
         # 检查当前登录状态
         _login_state = chaoxing.login(login_with_cookies=common_config.get("use_cookies", False))
         if not _login_state["status"]:
-            raise LoginError(_login_state["msg"])
+            message = str(_login_state.get("msg", ""))
+            if any(word in message for word in ("密码错误", "用户名或密码", "账号或密码")):
+                logger.error(
+                    "登录被拒。先排除这几种情况(都不是脚本能自动解决的):\n"
+                    "  1) 密码里有首尾空格/换行(从 secret 粘贴常见) —— 见上面『账号信息』那行的形状诊断;\n"
+                    "  2) 账号被临时冻结(短时间内多次密码错误会冻结约 15 分钟), 过 15 分钟再试;\n"
+                    "  3) 密码里有全角字符/输入法带进来的字符(诊断里会标出来);\n"
+                    "  4) 之前在手机上改过密码/开了二次验证 —— 那就改用 cookie 登录"
+                    "(扫码取cookie 工具导出 CHAOXING_COOKIE, 并把密码 secret 删掉)。")
+            raise LoginError(message)
         
         # 获取所有的课程列表
         all_course = chaoxing.get_course_list()
