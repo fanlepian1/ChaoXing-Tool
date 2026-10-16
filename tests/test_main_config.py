@@ -16,6 +16,41 @@ from api.exceptions import InputFormatError  # noqa: E402
 from api.answer import Tiku  # noqa: E402
 
 
+class TestListCoursesWiring(unittest.TestCase):
+    """--list-courses 必须真的生效, 而且不能引用 main() 里不存在的变量。
+
+    教训: 上一版把开关写在 main() 里却引用了 args(它只在 init_config() 里), CI 直接 NameError。
+    """
+
+    def test_flag_lands_in_common_config(self):
+        """用真实解析器跑一遍: --list-courses 必须落进 common_config。"""
+        with mock.patch.object(sys, "argv", ["main.py", "--list-courses"]):
+            common_config, _, _ = main_module.init_config()
+        self.assertTrue(common_config.get("list_courses"))
+
+    def test_main_prints_course_table_and_stops(self):
+        courses = [{"courseId": "268053034", "classId": "999", "title": "中国共产党历史"}]
+        fake_chaoxing = mock.Mock()
+        fake_chaoxing.login.return_value = {"status": True, "msg": "ok"}
+        fake_chaoxing.get_course_list.return_value = courses
+
+        with mock.patch.object(main_module, "init_config",
+                              return_value=({"username": "u", "password": "p",
+                                             "list_courses": True}, {}, {})), \
+                mock.patch.object(main_module, "init_chaoxing", return_value=fake_chaoxing), \
+                mock.patch.object(main_module, "Notification"), \
+                mock.patch.object(main_module, "configure_console_logger"), \
+                mock.patch.object(main_module, "export_tiku_bank"), \
+                mock.patch.object(main_module, "process_course") as fake_process, \
+                mock.patch.object(main_module, "logger") as fake_logger:
+            main_module.main()
+
+        self.assertFalse(fake_process.called, "只列课程时不该开始刷课")
+        logged = " ".join(str(call) for call in fake_logger.info.call_args_list)
+        self.assertIn("268053034", logged, "必须把课程表打出来(courseId 要能找到)")
+        self.assertIn("中国共产党历史", logged)
+
+
 class TestCourseFilter(unittest.TestCase):
     """课程ID 匹配: 常见的"填错"都要能容错或说清楚原因。"""
 

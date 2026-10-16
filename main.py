@@ -434,6 +434,8 @@ def init_config():
         logger.info("未指定配置文件, 使用命令行参数/环境变量运行")
 
     common_config = build_common_config(args, file_common)
+    # 把"只打印课程表"这个开关放进配置里, 免得 main() 再去引用 args(它拿不到)
+    common_config["list_courses"] = bool(getattr(args, "list_courses", False))
     tiku_config = resolve_tiku_config(file_tiku, args, os.environ)
     # 通知: 空值(模板里的 url=)不覆盖, 且环境变量优先级高于配置文件
     notification_config = {key: value for key, value in (file_notify or {}).items()
@@ -913,7 +915,7 @@ def main():
         all_course = chaoxing.get_course_list()
         
         # 只要课程表(--list-courses): 登录后打印出来就退出, 方便抄正确的 ID
-        if getattr(args, "list_courses", False):
+        if common_config.get("list_courses"):
             logger.info(describe_courses(all_course))
             return
 
