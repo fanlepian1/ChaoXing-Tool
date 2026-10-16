@@ -74,7 +74,7 @@ def stdin_is_interactive() -> bool:
 def parse_args():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(
-        description="SuperStar - 学习通/超星 自动刷课(内置可积累题库)",
+        description="ChaoXing-Tool - 学习通/超星 自动刷课(内置可积累题库)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
