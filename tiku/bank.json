@@ -3773,5 +3773,550 @@
     "answer": "正确",
     "source": "cache:cache.json",
     "auto_answer": "正确"
+  },
+  "1【多选题】社会主义社会意指（），是以多数人的利益为追求的社会理想。": {
+    "answer": "联合\n共享",
+    "source": "cache:cache.json",
+    "auto_answer": "联合\n共享"
+  },
+  "1【多选题】中国特色社会主义道路具有深厚的历史渊源和广泛的现实基础，其具体体现为（）。": {
+    "answer": "中国特色社会主义道路是在改革开放40多年的伟大实践中走出来的\n中国特色社会主义道路是在中华人民共和国成立70多年的持续探索中走出来的\n中国特色社会主义道路是在对近代以来180多年中华民族发展历程的深刻总结中走出来的\n中国特色社会主义道路是在对中华民族5000多年悠久文明的传承中走出来的",
+    "source": "cache:cache.json",
+    "auto_answer": "中国特色社会主义道路是在改革开放40多年的伟大实践中走出来的\n中国特色社会主义道路是在中华人民共和国成立70多年的持续探索中走出来的\n中国特色社会主义道路是在对近代以来180多年中华民族发展历程的深刻总结中走出来的\n中国特色社会主义道路是在对中华民族5000多年悠久文明的传承中走出来的"
+  },
+  "1【多选题】马克思和恩格斯把社会形态归纳划分为（）、共产主义所有制（社会主义所有制是其第一阶段）五种。": {
+    "answer": "部落所有制\n古代公社所有制和国家所有制\n封建的或等级的所有制\n资本主义所有制",
+    "source": "cache:cache.json",
+    "auto_answer": "部落所有制\n古代公社所有制和国家所有制\n封建的或等级的所有制\n资本主义所有制"
+  },
+  "2【判断题】社会主义与中华民族传统文化价值明显冲突。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "2【多选题】空想社会主义者认为社会主义应该是（）。": {
+    "answer": "没有剥削、追求平等\n注重社会大多数人的共享\n实现生产关系的联合所有制",
+    "source": "cache:cache.json",
+    "auto_answer": "没有剥削、追求平等\n注重社会大多数人的共享\n实现生产关系的联合所有制"
+  },
+  "1【多选题】资本主义比封建主义进步的地方主要表现在（）。": {
+    "answer": "资产阶级具有普选制\n资产阶级议会民主代替了封建制度的专制\n资产阶级的人权代替了封建制度的皇权和宗教的神权",
+    "source": "cache:cache.json",
+    "auto_answer": "资产阶级具有普选制\n资产阶级议会民主代替了封建制度的专制\n资产阶级的人权代替了封建制度的皇权和宗教的神权"
+  },
+  "3【判断题】空想社会主义者认为人类社会的发展是一个有规律的前进的过程。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "3【判断题】弘扬中华优秀传统文化是中华民族既加快发展又保持自身独立性的内在要求，是坚持和发展中国特色社会主义的必然要求。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "2【判断题】资产阶级在不到100年的阶级统治中，所创造的生产力比它过去一切时代所创造的全部生产力还要多，还要大。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "2【多选题】恩格斯进一步阐述了现代社会主义的含义，即（）。": {
+    "answer": "社会主义是一种思想体系和价值追求\n社会主义是一种现实的运动\n社会主义是一种制度的体现",
+    "source": "cache:cache.json",
+    "auto_answer": "社会主义是一种思想体系和价值追求\n社会主义是一种现实的运动\n社会主义是一种制度的体现"
+  },
+  "3【判断题】社会发展和社会形态的变迁是历史发展的客观产物。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】社会主义革命只能是“以人民群众的名义，并且是公开为着人民群众即生产者群众的利益而进行”的革命。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "4【判断题】社会主义是为多数人谋幸福的思想体系和价值追求。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【多选题】生产的社会化和生产资料的私人占有使当时资本主义生产出现（）。": {
+    "answer": "自发性\n盲目性\n滞后性",
+    "source": "cache:cache.json",
+    "auto_answer": "自发性\n盲目性\n滞后性"
+  },
+  "2【判断题】资本主义的矛盾是生产的社会化和生产资源的私人占有之间的矛盾。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】生产资料是能够带来价值的价值。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】英国宪章运动是1836-1848年英国工人们未得到自己应得的权利而掀起的工人运动，此次运动的政治纲领是（）。": {
+    "answer": "《人民宪章》",
+    "source": "cache:cache.json",
+    "auto_answer": "《人民宪章》"
+  },
+  "2【多选题】欧洲三大工人运动的失败的主要原因有（）。": {
+    "answer": "没有有组织的工人阶级政党的领导\n没有科学的理论",
+    "source": "cache:cache.json",
+    "auto_answer": "没有有组织的工人阶级政党的领导\n没有科学的理论"
+  },
+  "3【判断题】欧洲三大工人运动为马克思主义的创立奠定了实践基础。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】新和谐公社是空想社会主义代表人（）所主导开展的。": {
+    "answer": "欧文",
+    "source": "cache:cache.json",
+    "auto_answer": "欧文"
+  },
+  "2【多选题】以下符合空想社会主义者心中的理想社会的有（）。": {
+    "answer": "废除私有制\n消灭阶级差别\n平均分配产品\n没有资本主义弊端",
+    "source": "cache:cache.json",
+    "auto_answer": "废除私有制\n消灭阶级差别\n平均分配产品\n没有资本主义弊端"
+  },
+  "3【判断题】欧洲三大工人运动最终均以失败告终的根本原因是缺少创建理想社会的决心。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】下列各项中，属于《共产党宣言》的理论原理的是（）。": {
+    "answer": "历史唯物主义",
+    "source": "cache:cache.json",
+    "auto_answer": "历史唯物主义"
+  },
+  "2【判断题】《共产党宣言》是全世界第一个无产阶级政党理论和实践的周详而完备的党纲。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】《共产党宣言》的理论原理是历史唯物主义。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】（）概述了马克思和恩格斯在1843年至1848年期间所获得的全部科学认识和政治经验。": {
+    "answer": "《共产党宣言》",
+    "source": "cache:cache.json",
+    "auto_answer": "《共产党宣言》"
+  },
+  "2【判断题】《共产党宣言》引文说明了其产生的历史背景和目的任务。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】无产阶级政党是为少数人谋利益的政党。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】（）被认为是小资产阶级社会主义的代表。": {
+    "answer": "杜林",
+    "source": "cache:cache.json",
+    "auto_answer": "杜林"
+  },
+  "2【多选题】下列各项中，涉及到马克思主义的东方社会发展理论的有（）。": {
+    "answer": "恩格斯《论流亡者文献》\n马克思《给祖国纪事杂志社的信》\n马克思给俄国革命家查苏利奇的复信和复信初稿\n《共产党宣言》俄文第二版序言",
+    "source": "cache:cache.json",
+    "auto_answer": "恩格斯《论流亡者文献》\n马克思《给祖国纪事杂志社的信》\n马克思给俄国革命家查苏利奇的复信和复信初稿\n《共产党宣言》俄文第二版序言"
+  },
+  "3【判断题】在人类社会形态的演变上，具体的民族和国家在具体的发展过程中有着完全相同的情况。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【判断题】十月革命使马克思列宁主义传遍世界，极大的震撼了资本主义世界。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "2【判断题】十月革命是人类历史上第一次胜利的社会主义革命。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】十月革命标志着科学社会主义实现了从理论形态到制度形态的跨越。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】下列各项中，最早实行封建制度的国家是（）。": {
+    "answer": "中国",
+    "source": "cache:cache.json",
+    "auto_answer": "中国"
+  },
+  "2【判断题】十月革命是在整个世界资本主义开始演变为帝国主义，资本主义固有矛盾突出发展到相当激烈的历史条件下发生的。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】十月革命是在整个世界范围内资本主义开始向社会主义过渡这一大的历史趋势下发生的。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】中日甲午战争是指19世纪末日本侵略中国和（）的战争。": {
+    "answer": "朝鲜",
+    "source": "cache:cache.json",
+    "auto_answer": "朝鲜"
+  },
+  "2【单选题】号称“亚洲第一”的北洋水师是由（）主导花重金打造的。": {
+    "answer": "李鸿章",
+    "source": "cache:cache.json",
+    "auto_answer": "李鸿章"
+  },
+  "3【判断题】马克思主义刚刚进入中国的时候，就立刻成为了社会上最主要的思潮。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】李大钊所著的（）是第一次向中国人民系统地介绍马克思主义学说。": {
+    "answer": "《我的马克思主义观》",
+    "source": "cache:cache.json",
+    "auto_answer": "《我的马克思主义观》"
+  },
+  "2【单选题】中国的第一位马克思主义者是（）。": {
+    "answer": "李大钊",
+    "source": "cache:cache.json",
+    "auto_answer": "李大钊"
+  },
+  "3【判断题】陈独秀的《论政治》打响了马克思主义者批判无政府主义的第一炮。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "4【判断题】李大钊撰写的《法俄革命之比较观》是中国第一篇运用马克思主义学说来分析历史事件的文章。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【多选题】在党的建设初期，陈独秀、李大钊先后在（）建立共产主义小组。": {
+    "answer": "北京\n上海",
+    "source": "cache:cache.json",
+    "auto_answer": "北京\n上海"
+  },
+  "2【判断题】只有马克思主义能够救中国。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】无政府主义可以用来把一个国家建设好。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】（）确定了土地革命和武装起义的方针，这是党在付出血的代价后换得的正确结论。": {
+    "answer": "八七会议",
+    "source": "cache:cache.json",
+    "auto_answer": "八七会议"
+  },
+  "2【判断题】党和人民军队的根本宗旨是为人民服务。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】党的一切活动都必须深入到广大的群众里面去。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【判断题】新民主主义革命是在无产阶级领导下的人民大众的反帝反封建的革命。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "2【判断题】中国革命的性质是反帝反封建。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "3【判断题】民主革命分为旧民主主义革命和新民主主义革命两个阶段。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【多选题】伟大建党精神的精神内涵包括（）。": {
+    "answer": "坚持真理、坚守理想\n践行初心、担当使命\n不怕牺牲、英勇斗争\n对党忠诚、不负人民",
+    "source": "cache:cache.json",
+    "auto_answer": "坚持真理、坚守理想\n践行初心、担当使命\n不怕牺牲、英勇斗争\n对党忠诚、不负人民"
+  },
+  "2【多选题】毛泽东同志深刻分析中国社会形态和阶级状况，经过不懈探索，弄清了中国革命的（），提出通过新民主主义革命走向社会主义的两步走战略。": {
+    "answer": "性质\n对象\n任务\n动力",
+    "source": "cache:cache.json",
+    "auto_answer": "性质\n对象\n任务\n动力"
+  },
+  "3【判断题】农村包围城市、武装夺取政权的思想是由马克思、恩格斯首先提出的。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】“社会主义”这一概念是由空想社会主义者（）创建的。": {
+    "answer": "莫尔",
+    "source": "cache:cache.json",
+    "auto_answer": "莫尔"
+  },
+  "2【单选题】关于社会主义发展史上的飞跃，下列说法中错误的是（）。": {
+    "answer": "以《共产党宣言》发表为标志，实现了社会主义从无到有的跨越",
+    "source": "cache:cache.json",
+    "auto_answer": "以《共产党宣言》发表为标志，实现了社会主义从无到有的跨越"
+  },
+  "3【判断题】在1847年6月成立的共产主义者同盟是第一个以科学社会主义为指导思想的国际无产阶级政党。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】“中国特色社会主义”这一概念是在（）上确立的。": {
+    "answer": "党的十二大",
+    "source": "cache:cache.json",
+    "auto_answer": "党的十二大"
+  },
+  "2【单选题】（）指出，中国特色社会主义既坚持科学社会主义基本原则，又根据时代条件赋予其鲜明的中国特色。": {
+    "answer": "党的十八大报告",
+    "source": "cache:cache.json",
+    "auto_answer": "党的十八大报告"
+  },
+  "3【判断题】科学社会主义基本原则的具体实施是历史的、具体的。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【多选题】“三大改造”的对象包括（）。": {
+    "answer": "农业\n手工业\n资本主义工商业",
+    "source": "cache:cache.json",
+    "auto_answer": "农业\n手工业\n资本主义工商业"
+  },
+  "2【判断题】“一化三改”中的“一化”是指社会主义工业化。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】从中华人民共和国成立到社会主义改造基本完成，是我国的过渡时期。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】1957年，毛泽东同志作了（）的讲话，提出了“统筹兼顾、协调发展”的重要方针。": {
+    "answer": "《关于正确处理人民内部矛盾问题》",
+    "source": "cache:cache.json",
+    "auto_answer": "《关于正确处理人民内部矛盾问题》"
+  },
+  "2【单选题】1957年，毛泽东同志作了（）的讲话，提出了“统筹兼顾、协调发展”的重要方针，展现了党为寻找适合中国情况的社会主义建设道路而解放思想、多方探索的生动景象。": {
+    "answer": "《关于正确处理人民内部矛盾问题》",
+    "source": "cache:cache.json",
+    "auto_answer": "《关于正确处理人民内部矛盾问题》"
+  },
+  "3【判断题】改革开放后的40年的历史否定了改革开放前的30年的历史。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】1956年，苏共中央第一书记（）作《关于个人崇拜及其后果》的秘密报告，要求肃清个人崇拜在各个领域的影响。": {
+    "answer": "赫鲁晓夫",
+    "source": "cache:cache.json",
+    "auto_answer": "赫鲁晓夫"
+  },
+  "2【判断题】斯大林在世时，赫鲁晓夫就已曾经多次当面对其进行批判。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】我国第一条电气化铁路是（）。": {
+    "answer": "宝成铁路",
+    "source": "cache:cache.json",
+    "auto_answer": "宝成铁路"
+  },
+  "3【判断题】苏共二十大上的秘密报告对世界社会主义产生了消极影响。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "2【单选题】“历史从哪里开始，逻辑就从哪里开始”是（）的名言论述。": {
+    "answer": "恩格斯",
+    "source": "cache:cache.json",
+    "auto_answer": "恩格斯"
+  },
+  "3【判断题】理论思维的逻辑发展必须与历史的客观发展相一致。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【判断题】以天安门事件为代表的悼念周总理、反对“四人帮”的运动，实质上是拥护以邓小平为代表的中国共产党的正确领导，并为后来粉碎“四人帮”奠定了群众基础。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "2【判断题】毛泽东同志的探索，无论是成功的还是遇到挫折的，对于后人而言都是宝贵经验、理论准备、物质基础。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】以毛泽东为核心的党的第一代中央领导集体成功开创了中国特色社会主义。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】1978年，（）重新确立了解放思想、实事求是的思想路线。": {
+    "answer": "党的十一届三中全会",
+    "source": "cache:cache.json",
+    "auto_answer": "党的十一届三中全会"
+  },
+  "2【单选题】1974年，（）补选邓小平为中共中央副主席。": {
+    "answer": "党的十届二中全会",
+    "source": "cache:cache.json",
+    "auto_answer": "党的十届二中全会"
+  },
+  "3【判断题】把马克思主义的普遍真理同我国的具体实际结合起来，走自己的道路，建设有中国特色的社会主义，这就是我们总结长期历史经验得出的基本结论。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【判断题】贫穷不是社会主义。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "2【判断题】我国处于并将长期处于社会主义初级阶段，是我国最基本的国情。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】我们党的思想路线是解放思想，实事求是。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【多选题】中国特色社会主义进入新时代，意味着中国特色社会主义（）不断发展，拓展了发展中国家走向现代化的途径。": {
+    "answer": "道路\n理论\n制度\n文化",
+    "source": "cache:cache.json",
+    "auto_answer": "道路\n理论\n制度\n文化"
+  },
+  "2【判断题】中国特色社会主义进入了新时代是我国发展新的历史方位。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】一切划时代思想体系的真正内容，都是由于产生这些思想的那个时期的需要而形成起来的。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】（）是马克思主义同当代中国实际和时代特征相结合的产物，是马克思主义关于发展的世界观和方法论的集中体现，对新形势下实现什么样的发展、怎样发展等重大问题作出了新的科学回答。": {
+    "answer": "科学发展观",
+    "source": "cache:cache.json",
+    "auto_answer": "科学发展观"
+  },
+  "2【判断题】中国共产党的每一次重大理论创新都是在回答时代提出的重大课题中实现的。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】全面推进依法治国总目标是建设中国特色社会主义法治体系、建设社会主义法治国家。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】党的十八大以来，我国地级市以上的城市中消除黑臭水体的数量占比为（）。": {
+    "answer": "98.8%",
+    "source": "cache:cache.json",
+    "auto_answer": "98.8%"
+  },
+  "2【多选题】为了实现中华民族伟大复兴，中国共产党团结带领中国人民，自信自强、守正创新，统揽（），创造了新时代中国特色社会主义的伟大成就。": {
+    "answer": "伟大斗争\n伟大工程\n伟大事业\n伟大梦想",
+    "source": "cache:cache.json",
+    "auto_answer": "伟大斗争\n伟大工程\n伟大事业\n伟大梦想"
+  },
+  "1【单选题】社会主义从理想到现实的飞跃的主要标志是（）。": {
+    "answer": "俄国十月革命的胜利",
+    "source": "cache:cache.json",
+    "auto_answer": "俄国十月革命的胜利"
+  },
+  "2【判断题】当代资本主义经济及社会基础、社会基本矛盾发生了根本性的变化。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "3【判断题】社会主义从根本上反映了人类对促进社会生产力不断进步、促进人类思想道德文化和整个文明程度的不断提升、促进人自身的自由而全面发展的不懈追求。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】苏东模式的社会主义的失败原因不包括（）。": {
+    "answer": "科学社会主义失去生机活力",
+    "source": "cache:cache.json",
+    "auto_answer": "科学社会主义失去生机活力"
+  },
+  "2【判断题】中国的成功在于我们坚定不移地坚持马克思主义指导、坚持科学社会主义原则，又与时俱进、勇于变革，在社会生活的各个方面进行了全面地深入地改革开放。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】苏东社会主义的失败从根本上说是科学社会主义的失败。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【判断题】社会主义永远要坚持人民至上。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "2【判断题】我国的基本经济制度是公有制为主体，多种所有制经济共同发展。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】社会主义要坚持马克思主义在意识形态领域的指导地位。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】（）是世界上第一个研发出超级计算机的发展中国家。": {
+    "answer": "中国",
+    "source": "cache:cache.json",
+    "auto_answer": "中国"
+  },
+  "2【判断题】双循环战略是指以国内大循环为主体，国内国际双循环相互促进的经济发展新格局。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】只有社会主义才能救中国，只有中国特色社会主义才能发展中国。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】“两弹一星”中的“一星”是指（）。": {
+    "answer": "人造地球卫星",
+    "source": "cache:cache.json",
+    "auto_answer": "人造地球卫星"
+  },
+  "2【判断题】中国特色社会主义是党和人民历经千辛万苦、付出巨大代价取得的根本成就。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】我国采取和平方式有序地实现了马克思主义关于将资本主义改造成为社会主义的伟大构想。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】评价一个社会制度是否科学的标准不包括（）。": {
+    "answer": "走西方道路",
+    "source": "cache:cache.json",
+    "auto_answer": "走西方道路"
+  },
+  "2【判断题】中国特色社会主义制度是当代中国发展进步的根本制度保障。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【判断题】社会主义的本质是解放生产力、发展生产力，消灭剥削消除两级分化，最终达到共同富裕。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
   }
 }
