@@ -5373,5 +5373,135 @@
     "answer": "正确",
     "source": "cache:cache.json",
     "auto_answer": "正确"
+  },
+  "1【填空题】民间文学具有双重属性，既是文学现象，同时又是                现象。": {
+    "answer": "民俗",
+    "source": "cache:cache.json",
+    "auto_answer": "民俗"
+  },
+  "1【单选题】民间文学的四大特征中起主导作用的两个重要特征是（      ）": {
+    "answer": "集体性和口头性",
+    "source": "cache:cache.json",
+    "auto_answer": "集体性和口头性"
+  },
+  "1【填空题】俗话说：“一样话，十样说”，同一首歌谣，同一个故事，表述的语言千差万别，鲜明地体现了民间文学               的特征。": {
+    "answer": "变异性",
+    "source": "cache:cache.json",
+    "auto_answer": "变异性"
+  },
+  "2【填空题】“唱歌不是人发癫，也是前朝古人传，一人传三三传九，河水淘沙渐渐深”，这首民歌非常贴切地表述了民间文学                  的特征。": {
+    "answer": "传承性",
+    "source": "cache:cache.json",
+    "auto_answer": "传承性"
+  },
+  "3【单选题】远在2500年前结集的中国第一部诗歌总集（    ）中，就收录了许多古代民歌。": {
+    "answer": "《诗经》",
+    "source": "cache:cache.json",
+    "auto_answer": "《诗经》"
+  },
+  "4【单选题】民众“我口唱我心“的产物是（     ）": {
+    "answer": "民间文学",
+    "source": "cache:cache.json",
+    "auto_answer": "民间文学"
+  },
+  "5【单选题】民间文学传承性的形成与集体性的关系是（     ）": {
+    "answer": "传承性受集体性的制约",
+    "source": "cache:cache.json",
+    "auto_answer": "传承性受集体性的制约"
+  },
+  "6【判断题】民间故事是民间传说的一种。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "7【判断题】民间文学作品通常是匿名的，确切地说，它的创作者是人民大众。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "8【多选题】关于民间文学口头性说法正确的是（     ）": {
+    "answer": "广大民众用口头语言进行文学创作\n形成口语化的表达方式和口耳相传的传播方式\n在口头传统中将作品延续下来",
+    "source": "cache:cache.json",
+    "auto_answer": "广大民众用口头语言进行文学创作\n形成口语化的表达方式和口耳相传的传播方式\n在口头传统中将作品延续下来"
+  },
+  "1【连线题】盘古死后眼睛化日和月，那么请继续打开你的脑洞,联想一下盘古其他部位分别化为什么？1、四肢（骨骼）2、血液 3、肌肉 4、牙齿 5、头发 6、皮肤和汗毛 7、汗水 8、寄生虫": {
+    "answer": "1、四肢（骨骼）——四极五岳（山川）；2、血液——江河；3、肌肉——田土；4、牙齿——金石；5、头发——星辰；6、皮肤和汗毛——草木；7、汗水——雨泽；8、寄生虫——黎民（人类）",
+    "source": "cache:cache.json",
+    "auto_answer": "1、四肢（骨骼）——四极五岳（山川）；2、血液——江河；3、肌肉——田土；4、牙齿——金石；5、头发——星辰；6、皮肤和汗毛——草木；7、汗水——雨泽；8、寄生虫——黎民（人类）"
+  },
+  "1【单选题】在各类巧匠故事中，最著名、数量最多的是(      )的故事。": {
+    "answer": "鲁班",
+    "source": "cache:cache.json",
+    "auto_answer": "鲁班"
+  },
+  "2【单选题】《⻁丘塔为什么是斜的》是一则（       ）传说。": {
+    "answer": "山川风物传说",
+    "source": "cache:cache.json",
+    "auto_answer": "山川风物传说"
+  },
+  "3【单选题】八仙的传说中有个相貌奇特的神仙，他背着葫芦，专为人们除灾祛难，他是（    ）": {
+    "answer": "铁拐李",
+    "source": "cache:cache.json",
+    "auto_answer": "铁拐李"
+  },
+  "4【单选题】在民间传说的讲述中，民众往往将一些同类情节集中安置在某一个人物形象身上，这样的人物形象称为（     ）": {
+    "answer": "箭垛人物形象",
+    "source": "cache:cache.json",
+    "auto_answer": "箭垛人物形象"
+  },
+  "5【单选题】解释各地山川名胜的由来，具有较强的解释性特点的传说是（       ）": {
+    "answer": "地方风物传说",
+    "source": "cache:cache.json",
+    "auto_answer": "地方风物传说"
+  },
+  "6【填空题】民间传说总是围绕一定的客观实在物来讲述，这些客观实在物被称为（      ）": {
+    "answer": "传说核",
+    "source": "cache:cache.json",
+    "auto_answer": "传说核"
+  },
+  "7【填空题】万里寻夫，哭倒长城的传说人物是（      ）": {
+    "answer": "孟姜女",
+    "source": "cache:cache.json",
+    "auto_answer": "孟姜女"
+  },
+  "8【填空题】民间传说的传承范围是相对固定的，从而形成了一个个大大小小的（      ）": {
+    "answer": "传说圈",
+    "source": "cache:cache.json",
+    "auto_answer": "传说圈"
+  },
+  "9【判断题】民间传说是人类最早的散文形式的口头创作，它是原始人最初构思的以神为中心的幻想故事。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "10【判断题】民间传说常常使用“从前”，”很久很久以前“这样的开头”": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "11【判断题】神话与传说之间存在紧密地关联，二者之间是源与流的关系。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "12【判断题】传说是民众口传的历史": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "13【多选题】民间传说的类别主要有": {
+    "answer": "人物传说\n风物习俗传说\n史事传说",
+    "source": "cache:cache.json",
+    "auto_answer": "人物传说\n风物习俗传说\n史事传说"
+  },
+  "14【多选题】中国民间的四大传说是（       ）": {
+    "answer": "孟姜女\n牛郎织女\n梁山伯与祝英台\n白蛇传",
+    "source": "cache:cache.json",
+    "auto_answer": "孟姜女\n牛郎织女\n梁山伯与祝英台\n白蛇传"
+  },
+  "15【多选题】民间传说具有（      ）的特点": {
+    "answer": "叙述方式的可信性\n箭垛人物形象\n传承范围的区域性",
+    "source": "cache:cache.json",
+    "auto_answer": "叙述方式的可信性\n箭垛人物形象\n传承范围的区域性"
   }
 }
