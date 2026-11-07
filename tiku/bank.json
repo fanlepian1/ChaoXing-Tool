@@ -5503,5 +5503,1825 @@
     "answer": "叙述方式的可信性\n箭垛人物形象\n传承范围的区域性",
     "source": "cache:cache.json",
     "auto_answer": "叙述方式的可信性\n箭垛人物形象\n传承范围的区域性"
+  },
+  "1【单选题】孔子思想的核心是________": {
+    "answer": "仁",
+    "source": "cache:cache.json",
+    "auto_answer": "仁"
+  },
+  "2【单选题】儒家思想的创始人是________": {
+    "answer": "孔子",
+    "source": "cache:cache.json",
+    "auto_answer": "孔子"
+  },
+  "1【单选题】历代先哲中，有“亚圣”之称的是哪一位?": {
+    "answer": "孟子",
+    "source": "cache:cache.json",
+    "auto_answer": "孟子"
+  },
+  "1【单选题】四大古文化中，到如今仍然活着的是": {
+    "answer": "中华文化",
+    "source": "cache:cache.json",
+    "auto_answer": "中华文化"
+  },
+  "1【单选题】历代先哲中，有“后圣”之称的是哪一位？": {
+    "answer": "荀子",
+    "source": "cache:cache.json",
+    "auto_answer": "荀子"
+  },
+  "2【单选题】西汉刘向整理《荀子》一书，定为多少篇 ？": {
+    "answer": "三十二篇",
+    "source": "cache:cache.json",
+    "auto_answer": "三十二篇"
+  },
+  "3【单选题】孔子认为教育对象没有高低贵贱的区别，提出了_______的教育理念。": {
+    "answer": "有教无类",
+    "source": "cache:cache.json",
+    "auto_answer": "有教无类"
+  },
+  "2【单选题】孟子主张施行王道仁政，是基于他的什么思想？": {
+    "answer": "性善论",
+    "source": "cache:cache.json",
+    "auto_answer": "性善论"
+  },
+  "3【单选题】什么是荀子思想的核心？": {
+    "answer": "隆礼重法",
+    "source": "cache:cache.json",
+    "auto_answer": "隆礼重法"
+  },
+  "4【单选题】孔子认为：“仁者，人也，________ 。”": {
+    "answer": "亲亲为大",
+    "source": "cache:cache.json",
+    "auto_answer": "亲亲为大"
+  },
+  "2【单选题】上古时代，中华礼乐文化达到鼎盛的代表性典籍是《     》": {
+    "answer": "周礼",
+    "source": "cache:cache.json",
+    "auto_answer": "周礼"
+  },
+  "3【单选题】孟子将什么视为最高精神境界？": {
+    "answer": "义",
+    "source": "cache:cache.json",
+    "auto_answer": "义"
+  },
+  "4【单选题】“______”是荀子政治思想的理论基础。": {
+    "answer": "性恶说",
+    "source": "cache:cache.json",
+    "auto_answer": "性恶说"
+  },
+  "5【单选题】孔子的学生把孔子的思想记录下来，整理成书，即《_______》": {
+    "answer": "论语",
+    "source": "cache:cache.json",
+    "auto_answer": "论语"
+  },
+  "3【单选题】春秋末期，学派众多，他们之间互相争辩，被称为“        ”": {
+    "answer": "百家争鸣",
+    "source": "cache:cache.json",
+    "auto_answer": "百家争鸣"
+  },
+  "4【单选题】孟子发展和改造了孔子“仁爱”、“礼治”和“德政”的思想，明确提出了“_______”学说，这是他政治思想的核心。": {
+    "answer": "仁政",
+    "source": "cache:cache.json",
+    "auto_answer": "仁政"
+  },
+  "5【单选题】《_______》一书为荀子及其弟子所著。": {
+    "answer": "荀子",
+    "source": "cache:cache.json",
+    "auto_answer": "荀子"
+  },
+  "4【单选题】到汉武帝时期，提出“罢黜百家，独尊儒术”的是": {
+    "answer": "董仲舒",
+    "source": "cache:cache.json",
+    "auto_answer": "董仲舒"
+  },
+  "6【多选题】下面哪两个人不是孔子的弟子": {
+    "answer": "子瞻\n子由",
+    "source": "cache:cache.json",
+    "auto_answer": "子瞻\n子由"
+  },
+  "5【单选题】在孔子看来，最重要的德行是": {
+    "answer": "仁",
+    "source": "cache:cache.json",
+    "auto_answer": "仁"
+  },
+  "5【单选题】 孟子提出“___________，失道者寡助”，他认为得道与失道的关键在于能否获得民众的拥护。": {
+    "answer": "得道者多助",
+    "source": "cache:cache.json",
+    "auto_answer": "得道者多助"
+  },
+  "6【多选题】荀子发展了孔子礼的思想，同时吸收了先秦法家重法的思想，提出什么主张？": {
+    "answer": "礼法并施\n王霸兼用",
+    "source": "cache:cache.json",
+    "auto_answer": "礼法并施\n王霸兼用"
+  },
+  "7【多选题】下面哪些典籍是孔子整理的": {
+    "answer": "《尚书》\n《诗经》",
+    "source": "cache:cache.json",
+    "auto_answer": "《尚书》\n《诗经》"
+  },
+  "7【多选题】荀子的学生中最著名的两位是?": {
+    "answer": "李斯\n韩非",
+    "source": "cache:cache.json",
+    "auto_answer": "李斯\n韩非"
+  },
+  "6【多选题】《孟子》与哪几部著作合称四书？": {
+    "answer": "《论语》\n《大学》\n《中庸》",
+    "source": "cache:cache.json",
+    "auto_answer": "《论语》\n《大学》\n《中庸》"
+  },
+  "8【判断题】汉武帝采纳了司马迁 “罢黜百家，独尊儒术“的建议，从此确立了孔子在中国历史上的至尊地位。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "6【单选题】《周易》中写到，天行健，（    ）。": {
+    "answer": "君子以自强不息",
+    "source": "cache:cache.json",
+    "auto_answer": "君子以自强不息"
+  },
+  "7【多选题】孟子认为天地之间有一种浩然之气，有了这种正气，便可培养出哪几方面的“大丈夫”精神？": {
+    "answer": "富贵不能淫\n贫贱不能移\n威武不能屈",
+    "source": "cache:cache.json",
+    "auto_answer": "富贵不能淫\n贫贱不能移\n威武不能屈"
+  },
+  "8【判断题】荀子，名况，战国末期楚国人，时人尊号为卿，又称荀卿。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "9【判断题】孔子是中国历史上首开私人之学和长期从事教育工作的教育家，积累了丰富的教育经验，提出了许多教育原理、原则，被后人尊称为“孔夫子”、“至圣先师”和“万世师表”。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "7【多选题】下面哪些诗句表现出中华民族珍视道义、责任和节操": {
+    "answer": "先天下之忧而忧，后天下之乐而乐\n无求生以害仁，有杀身以求仁\n人生自古谁无死，留取丹心照汗青",
+    "source": "cache:cache.json",
+    "auto_answer": "先天下之忧而忧，后天下之乐而乐\n无求生以害仁，有杀身以求仁\n人生自古谁无死，留取丹心照汗青"
+  },
+  "9【判断题】荀子曾在齐国都城临淄稷门附近的稷下学宫三次担任学宫“祭酒”。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】记载孔子言行的《孔子》一书，被广为传播，甚至有人说“半部《孔子》治天下”。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "8【判断题】孟子，名轲, 字子舆，是春秋时期著名的的思想家、政治家和教育家。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "10【判断题】荀子是战国时期最后一位法学大师。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "9【判断题】在经济上，针对如何施行仁政，孟子提出“制民恒产”的建议。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "8【多选题】汉代形成的“五常”之道包括仁、": {
+    "answer": "义\n礼\n智\n信",
+    "source": "cache:cache.json",
+    "auto_answer": "义\n礼\n智\n信"
+  },
+  "9【判断题】中华民族的艺术理想和审美观是中和为美。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】孟子的性善论对中国传统思想影响很大。《三字经》开篇第一句就是“人之初、性本善”。性善论也成为后来儒家的正统观念。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】中华文化体系以经、史、子、传和儒、道、释为主要内容。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】谁提出了“天人感应”学说，宣扬“君权神授”？": {
+    "answer": "董仲舒",
+    "source": "cache:cache.json",
+    "auto_answer": "董仲舒"
+  },
+  "2【单选题】明末清初哪位思想家发出“天下兴亡，匹夫有责”的呼唤 ？": {
+    "answer": "顾炎武",
+    "source": "cache:cache.json",
+    "auto_answer": "顾炎武"
+  },
+  "2【单选题】孔子认为：“仁者，人也，________ 。”": {
+    "answer": "亲亲为大",
+    "source": "cache:cache.json",
+    "auto_answer": "亲亲为大"
+  },
+  "3【单选题】历代先哲中，有“亚圣”之称的是哪一位?": {
+    "answer": "孟子",
+    "source": "cache:cache.json",
+    "auto_answer": "孟子"
+  },
+  "3【单选题】南宋_______是理学的集大成者，他出生、成长于福建，学术活动的主要地点也在福建，故其学派被称为“闽学”。": {
+    "answer": "朱熹",
+    "source": "cache:cache.json",
+    "auto_answer": "朱熹"
+  },
+  "4【单选题】______是宋代理学的开山之祖。": {
+    "answer": "周敦颐",
+    "source": "cache:cache.json",
+    "auto_answer": "周敦颐"
+  },
+  "4【单选题】孟子将什么视为最高精神境界？": {
+    "answer": "义",
+    "source": "cache:cache.json",
+    "auto_answer": "义"
+  },
+  "5【单选题】“______”是荀子政治思想的理论基础。": {
+    "answer": "性恶说",
+    "source": "cache:cache.json",
+    "auto_answer": "性恶说"
+  },
+  "5【单选题】_______是三纲五常理论的代表。": {
+    "answer": "董仲舒",
+    "source": "cache:cache.json",
+    "auto_answer": "董仲舒"
+  },
+  "1【单选题】起初，《周易》是_________的人们用来占卜算卦、预测运势的书籍，带有神秘色彩。": {
+    "answer": "殷末周初",
+    "source": "cache:cache.json",
+    "auto_answer": "殷末周初"
+  },
+  "6【多选题】下面哪些典籍是孔子整理的": {
+    "answer": "《尚书》\n《诗经》",
+    "source": "cache:cache.json",
+    "auto_answer": "《尚书》\n《诗经》"
+  },
+  "6【多选题】“致知论”是朱嘉学说的重要组成部分，其中哪两方面最重要的方面？": {
+    "answer": "格物致知\n致知力行",
+    "source": "cache:cache.json",
+    "auto_answer": "格物致知\n致知力行"
+  },
+  "1【单选题】____________是一部关于古代政事的史料汇编，是最早的帝王教科书。": {
+    "answer": "尚书",
+    "source": "cache:cache.json",
+    "auto_answer": "尚书"
+  },
+  "2【单选题】_____________被誉为“群经之首，大道之源”。": {
+    "answer": "《周易》",
+    "source": "cache:cache.json",
+    "auto_answer": "《周易》"
+  },
+  "7【多选题】《孟子》与哪几部著作合称四书？": {
+    "answer": "《论语》\n《大学》\n《中庸》",
+    "source": "cache:cache.json",
+    "auto_answer": "《论语》\n《大学》\n《中庸》"
+  },
+  "7【多选题】王守仁强调什么，心就是天地万物的主宰？": {
+    "answer": "心外无物\n心外无理",
+    "source": "cache:cache.json",
+    "auto_answer": "心外无物\n心外无理"
+  },
+  "2【单选题】《尚书》最早名《书》，意思是_________。": {
+    "answer": "上古之书",
+    "source": "cache:cache.json",
+    "auto_answer": "上古之书"
+  },
+  "3【单选题】组成卦符的基本符号是________ 。": {
+    "answer": "爻",
+    "source": "cache:cache.json",
+    "auto_answer": "爻"
+  },
+  "8【判断题】董仲舒提出“罢黜百家，独尊儒术”。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "9【判断题】孟子的性善论对中国传统思想影响很大。《三字经》开篇第一句就是“人之初、性本善”。性善论也成为后来儒家的正统观念。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "3【单选题】《尚书》的记事上起原始社会末期的虞舜，下至春秋时期的______。": {
+    "answer": "秦穆公",
+    "source": "cache:cache.json",
+    "auto_answer": "秦穆公"
+  },
+  "4【单选题】《汉书》中的“人更三圣，世历三古”中的“三圣”指的是伏羲、周文王和_________": {
+    "answer": "孔子",
+    "source": "cache:cache.json",
+    "auto_answer": "孔子"
+  },
+  "9【判断题】王守仁认为，天地万物都由阴阳五行化生，人为万物之灵，人的最高标准是中正仁义，他称之为“人极”。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "10【判断题】王守仁认为，天地万物都由阴阳五行化生，人为万物之灵，人的最高标准是中正仁义，他称之为“人极”。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "5【单选题】《周易》的内容包括：“_____”和“传”两部分。": {
+    "answer": "经",
+    "source": "cache:cache.json",
+    "auto_answer": "经"
+  },
+  "10【判断题】作为传统文化的主流，儒学持久而深刻地影响了中国社会文化的各个领域，在政治、教育、信仰等方面广泛渗透。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "5【单选题】《尚书》大部分内容是君王的文告和君臣间的______。": {
+    "answer": "谈话记录",
+    "source": "cache:cache.json",
+    "auto_answer": "谈话记录"
+  },
+  "6【多选题】《易经》指的是夏代的《连山》和下面哪两项": {
+    "answer": "商代的《归藏》\n周代的《周易》",
+    "source": "cache:cache.json",
+    "auto_answer": "商代的《归藏》\n周代的《周易》"
+  },
+  "1【单选题】____________是我国最早的一部诗歌总集。": {
+    "answer": "《诗经》",
+    "source": "cache:cache.json",
+    "auto_answer": "《诗经》"
+  },
+  "7【多选题】下面哪些是《周易》阐释的变化发展的规律": {
+    "answer": "简易\n变易\n不易",
+    "source": "cache:cache.json",
+    "auto_answer": "简易\n变易\n不易"
+  },
+  "6【多选题】《尚书》中六大体例是典、谟、训和下面哪三项( )": {
+    "answer": "诰\n誓\n命",
+    "source": "cache:cache.json",
+    "auto_answer": "诰\n誓\n命"
+  },
+  "2【单选题】《诗经》按照____________性质的不同划分为“⻛“、”雅“、”颂“三类。": {
+    "answer": "音乐",
+    "source": "cache:cache.json",
+    "auto_answer": "音乐"
+  },
+  "8【判断题】《易传》是现存最早、最系统地注释《周易》的著作。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "7【多选题】下面哪些是《尚书》蕴含的思想（ ）": {
+    "answer": "民本\n修身\n德治\n和谐",
+    "source": "cache:cache.json",
+    "auto_answer": "民本\n修身\n德治\n和谐"
+  },
+  "3【单选题】“关关雎鸠，在河之洲。________________________。”翻开了《诗经》的第一篇乐章。": {
+    "answer": "窈窕淑女，君子好逑",
+    "source": "cache:cache.json",
+    "auto_answer": "窈窕淑女，君子好逑"
+  },
+  "9【判断题】《周易》的哲学本质就在于变化发展。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "8【判断题】《尚书》中《禹贡》记述了大禹治水的丰功伟绩，也记录了当时的行政区划、山川河流土壤植被、天地物产等。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "4【单选题】____________是《诗经》的核心内容。": {
+    "answer": "国风",
+    "source": "cache:cache.json",
+    "auto_answer": "国风"
+  },
+  "10【判断题】《周易》的义理精华造就了充满智慧的中国哲学，其道德诉求则孕育了中华民族“自强不息，厚德载物“的民族精神。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "9【判断题】到了汉代，《尚书》出现了“今文《尚书》”和“古文《尚书》”两种不同的版本。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "5【单选题】《诗经》颂诗共四十篇，包括周颂、鲁颂、______。": {
+    "answer": "商颂",
+    "source": "cache:cache.json",
+    "auto_answer": "商颂"
+  },
+  "10【判断题】从文学角度来看，《尚书》是我国古代散文形成的标志。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "6【多选题】《诗经》的表现手法是下面哪三项( )": {
+    "answer": "赋\n比\n兴",
+    "source": "cache:cache.json",
+    "auto_answer": "赋\n比\n兴"
+  },
+  "7【多选题】下面哪些属于《诗经》的成书过程？（ ）": {
+    "answer": "采诗\n删诗\n献诗",
+    "source": "cache:cache.json",
+    "auto_answer": "采诗\n删诗\n献诗"
+  },
+  "8【判断题】《诗经》在西汉时被尊为儒家经典。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "9【判断题】据说“诗”原有三千多篇，孔子曾对其整理、校订，依据“礼义“的 标准从中选出三百五十篇。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "10【判断题】“国⻛”中的《芣苢》写出了不堪劳役之苦的人痛苦挣扎与怨恨。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】____________是一部先秦至秦汉时期的礼学文献选编。": {
+    "answer": "《礼记》",
+    "source": "cache:cache.json",
+    "auto_answer": "《礼记》"
+  },
+  "2【单选题】《礼记》地位日升，至_______代时尊为“经”。": {
+    "answer": "唐",
+    "source": "cache:cache.json",
+    "auto_answer": "唐"
+  },
+  "3【单选题】今天所说的《礼记》是郑玄作注的_________。": {
+    "answer": "《小戴礼记》",
+    "source": "cache:cache.json",
+    "auto_answer": "《小戴礼记》"
+  },
+  "5【单选题】“大同小康”这种理想社会的核心是_________。": {
+    "answer": "和谐",
+    "source": "cache:cache.json",
+    "auto_answer": "和谐"
+  },
+  "6【多选题】下面哪三项是儒家礼育的基本教科书。( )": {
+    "answer": "《礼记》\n《仪礼》\n《周礼》",
+    "source": "cache:cache.json",
+    "auto_answer": "《礼记》\n《仪礼》\n《周礼》"
+  },
+  "7【多选题】下列哪几项是《礼记》的艺术特色？（ ）": {
+    "answer": "谋篇布局，层折曲妙\n语言特色\n行文句法：繁简有当",
+    "source": "cache:cache.json",
+    "auto_answer": "谋篇布局，层折曲妙\n语言特色\n行文句法：繁简有当"
+  },
+  "8【判断题】《礼记》是中国古代一部重要的典章制度选集，共二十卷四十九篇 。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "9【判断题】“小康”是比“大同”理想较高一级的社会。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "10【判断题】孙中山先生曾亲笔书写《礼运》篇，并时常引证“天下为公”。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】不属于儒家“五经”的是（ ）": {
+    "answer": "《乐经》",
+    "source": "cache:cache.json",
+    "auto_answer": "《乐经》"
+  },
+  "2【单选题】孔子去世后，继承他的思想，继续注重讲授《春秋》的弟子是（ ）": {
+    "answer": "子夏",
+    "source": "cache:cache.json",
+    "auto_answer": "子夏"
+  },
+  "3【单选题】《春秋》所开创的_______体例，为后世史书提供了编写的范例。": {
+    "answer": "编年",
+    "source": "cache:cache.json",
+    "auto_answer": "编年"
+  },
+  "4【单选题】《春秋》暗含褒贬的文风被称为__________________。": {
+    "answer": "春秋笔法",
+    "source": "cache:cache.json",
+    "auto_answer": "春秋笔法"
+  },
+  "5【单选题】____________是我国第一部规模宏大、叙事详细的编年体史书。": {
+    "answer": "《左传》",
+    "source": "cache:cache.json",
+    "auto_answer": "《左传》"
+  },
+  "6【多选题】我们常说的“春秋三传”包括_______________、_______________、_______________。": {
+    "answer": "《左传》\n《公羊传》\n《榖梁传》",
+    "source": "cache:cache.json",
+    "auto_answer": "《左传》\n《公羊传》\n《榖梁传》"
+  },
+  "7【多选题】《春秋》，即《春秋经》，又称________  、___________。": {
+    "answer": "麟史\n麟经",
+    "source": "cache:cache.json",
+    "auto_answer": "麟史\n麟经"
+  },
+  "8【判断题】《春秋》记述范围涉及当时诸侯各国，内容包括政治、军事、经济、文化、天文气象、社会生活等各个方面。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "9【判断题】《左传》的作者为春秋末期鲁国史官左丘明，成书于春秋末期。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "10【判断题】《榖梁传》着重宣扬儒家思想，处处突出君王的绝对权威，受到统治阶级的极大重视。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】_____________被誉为“群经之首，大道之源”。": {
+    "answer": "《周易》",
+    "source": "cache:cache.json",
+    "auto_answer": "《周易》"
+  },
+  "3【单选题】____________是我国最早的一部诗歌总集。": {
+    "answer": "《诗经》",
+    "source": "cache:cache.json",
+    "auto_answer": "《诗经》"
+  },
+  "4【单选题】____________是一部先秦至秦汉时期的礼学文献选编。": {
+    "answer": "《礼记》",
+    "source": "cache:cache.json",
+    "auto_answer": "《礼记》"
+  },
+  "5【单选题】《春秋》暗含褒贬的文⻛被称为__________________。": {
+    "answer": "春秋笔法",
+    "source": "cache:cache.json",
+    "auto_answer": "春秋笔法"
+  },
+  "7【多选题】《诗经》的表现手法是下面哪三项( )": {
+    "answer": "赋\n比\n兴",
+    "source": "cache:cache.json",
+    "auto_answer": "赋\n比\n兴"
+  },
+  "10【判断题】《左传》的作者为春秋末期鲁国史官左丘明，成书于春秋末期。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】古人修身强调首先要做到________。": {
+    "answer": "修己慎独",
+    "source": "cache:cache.json",
+    "auto_answer": "修己慎独"
+  },
+  "2【单选题】儒家学派创始人________非常重视“修己”。": {
+    "answer": "孔子",
+    "source": "cache:cache.json",
+    "auto_answer": "孔子"
+  },
+  "3【单选题】孔子认为，“不学礼，________”。": {
+    "answer": "无以立",
+    "source": "cache:cache.json",
+    "auto_answer": "无以立"
+  },
+  "4【单选题】非淡泊无以明志，______________。": {
+    "answer": "非宁静无以致远",
+    "source": "cache:cache.json",
+    "auto_answer": "非宁静无以致远"
+  },
+  "5【单选题】古人历练人生讲求修身、齐家、治国、________。": {
+    "answer": "平天下",
+    "source": "cache:cache.json",
+    "auto_answer": "平天下"
+  },
+  "6【多选题】杨震说过：“天知、____、____、____，何谓无知？”而由此获得了“四知太守”的称号。": {
+    "answer": "神知\n我知\n子知",
+    "source": "cache:cache.json",
+    "auto_answer": "神知\n我知\n子知"
+  },
+  "7【多选题】要做到慎独，我们可以从________、________、________三方面去努力。": {
+    "answer": "慎己\n慎微\n慎省",
+    "source": "cache:cache.json",
+    "auto_answer": "慎己\n慎微\n慎省"
+  },
+  "8【判断题】孔子在《诫子书》中说：“静以修身，俭以养德”。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "9【判断题】“非礼勿视，非礼勿听，非礼勿言，非礼勿动”一句出自《孟子》。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】“太上贵德”出自_______。": {
+    "answer": "《礼记·曲礼上》",
+    "source": "cache:cache.json",
+    "auto_answer": "《礼记·曲礼上》"
+  },
+  "10【判断题】荀子认为不学礼，无以立。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "2【单选题】“德不孤，必有邻”出自________。": {
+    "answer": "《论语》",
+    "source": "cache:cache.json",
+    "auto_answer": "《论语》"
+  },
+  "3【单选题】贵德体现在政治上，强调________。": {
+    "answer": "施德为本",
+    "source": "cache:cache.json",
+    "auto_answer": "施德为本"
+  },
+  "4【单选题】孔子说：“君子喻于义，________ 。”": {
+    "answer": "小人喻于利",
+    "source": "cache:cache.json",
+    "auto_answer": "小人喻于利"
+  },
+  "5【单选题】修身的关键是要修养_________。": {
+    "answer": "内心",
+    "source": "cache:cache.json",
+    "auto_answer": "内心"
+  },
+  "6【多选题】在下列帝王谥号中，属于表扬的是________。": {
+    "answer": "文\n武\n景",
+    "source": "cache:cache.json",
+    "auto_answer": "文\n武\n景"
+  },
+  "7【多选题】下面哪两句是孔子重义轻利思想的体现？": {
+    "answer": "见利思义，见危授命，久要不忘平生之言，亦可以为成人矣。\n不义而富且贵，于我如浮云。",
+    "source": "cache:cache.json",
+    "auto_answer": "见利思义，见危授命，久要不忘平生之言，亦可以为成人矣。\n不义而富且贵，于我如浮云。"
+  },
+  "8【判断题】贵德的意识体现在政治观上是重义轻利。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "9【判断题】孔子认为“德”是区别“仁君”和“暴君”的标准。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】见利思义，是中华民族重要的传统美德。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】子曰：“三人行，必有我师焉”出自_______。": {
+    "answer": "《论语》",
+    "source": "cache:cache.json",
+    "auto_answer": "《论语》"
+  },
+  "2【单选题】“谦谦君子，卑以自牧也”这句古语，说明________是修身的必备要素。": {
+    "answer": "谦虚",
+    "source": "cache:cache.json",
+    "auto_answer": "谦虚"
+  },
+  "3【单选题】春秋时期政治家管仲提出，________，国之四维。": {
+    "answer": "礼义廉耻",
+    "source": "cache:cache.json",
+    "auto_answer": "礼义廉耻"
+  },
+  "4【单选题】谦让的原则是_______。": {
+    "answer": "以礼相让",
+    "source": "cache:cache.json",
+    "auto_answer": "以礼相让"
+  },
+  "5【单选题】满招损，________，时乃天道。": {
+    "answer": "谦受益",
+    "source": "cache:cache.json",
+    "auto_answer": "谦受益"
+  },
+  "6【多选题】以下谦称，表示子女的有________。": {
+    "answer": "小女\n犬子",
+    "source": "cache:cache.json",
+    "auto_answer": "小女\n犬子"
+  },
+  "7【多选题】强调谦让的语句有________。": {
+    "answer": "让，礼之主也\n满招损，谦受益\n卑让，德之基也",
+    "source": "cache:cache.json",
+    "auto_answer": "让，礼之主也\n满招损，谦受益\n卑让，德之基也"
+  },
+  "8【判断题】项羽，人称关中小霸王，在引兵北上前夕被吴郡太守的门客刺死。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "9【判断题】儒家认为，谦让是一种高尚的道德行为，是君子应当具备的道德品质。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】谦耻笃学，是中华民族的传统美德。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】孟子曰：“我善养吾浩然之气”中悍然之气是一种_______。": {
+    "answer": "刚正之气",
+    "source": "cache:cache.json",
+    "auto_answer": "刚正之气"
+  },
+  "2【单选题】子曰：“刚毅木讷，近仁。”出自________。": {
+    "answer": "《论语·子路》",
+    "source": "cache:cache.json",
+    "auto_answer": "《论语·子路》"
+  },
+  "3【单选题】“仰无愧于天，俯不怍于人”选自________。": {
+    "answer": "《孟子·尽心上》",
+    "source": "cache:cache.json",
+    "auto_answer": "《孟子·尽心上》"
+  },
+  "4【单选题】唐太宗说过，以古为鉴，可以________。": {
+    "answer": "知兴替",
+    "source": "cache:cache.json",
+    "auto_answer": "知兴替"
+  },
+  "5【单选题】管仲曰：“_______，人亦善之。”": {
+    "answer": "善人者",
+    "source": "cache:cache.json",
+    "auto_answer": "善人者"
+  },
+  "6【多选题】益者三友，___、____、_____。": {
+    "answer": "友直\n友谅\n友多闻",
+    "source": "cache:cache.json",
+    "auto_answer": "友直\n友谅\n友多闻"
+  },
+  "7【多选题】损者三友，____、____、____。": {
+    "answer": "友便辟\n友善柔\n友便佞",
+    "source": "cache:cache.json",
+    "auto_answer": "友便辟\n友善柔\n友便佞"
+  },
+  "8【判断题】诸葛亮临终对儿子说：“勿以善小而不为，勿以恶小而为之。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "9【判断题】刚正与向善是中华民族精神的精华。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "10【判断题】孟子所说的浩然正气是一种刚正之气，是一种顶天立地的精神。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】儒家学派创始人________非常重视“修己”。": {
+    "answer": "孔子",
+    "source": "cache:cache.json",
+    "auto_answer": "孔子"
+  },
+  "2【单选题】孔子认为，“不学礼，________”。": {
+    "answer": "无以立",
+    "source": "cache:cache.json",
+    "auto_answer": "无以立"
+  },
+  "3【单选题】孔子说：“君子喻于义，________ 。”": {
+    "answer": "小人喻于利",
+    "source": "cache:cache.json",
+    "auto_answer": "小人喻于利"
+  },
+  "4【单选题】春秋时期政治家管仲提出，________，国之四维。": {
+    "answer": "礼义廉耻",
+    "source": "cache:cache.json",
+    "auto_answer": "礼义廉耻"
+  },
+  "1【单选题】都江堰位于哪个地区（      ）": {
+    "answer": "四川地区",
+    "source": "cache:cache.json",
+    "auto_answer": "四川地区"
+  },
+  "5【单选题】唐太宗说过，以古为鉴，可以________。": {
+    "answer": "知兴替",
+    "source": "cache:cache.json",
+    "auto_answer": "知兴替"
+  },
+  "2【单选题】下列说法正确的一项是（     ）": {
+    "answer": "在我国古代，人们很早就学会了利用自然规律来预防水患。",
+    "source": "cache:cache.json",
+    "auto_answer": "在我国古代，人们很早就学会了利用自然规律来预防水患。"
+  },
+  "6【多选题】要做到慎独，我们可以从________、________、________三方面去努力。": {
+    "answer": "慎己\n慎微\n慎省",
+    "source": "cache:cache.json",
+    "auto_answer": "慎己\n慎微\n慎省"
+  },
+  "3【单选题】为了观测和控制内江水量，李冰雕刻了三个石桩人像放于水中，以（ ）来确定水位。": {
+    "answer": "枯水不淹足，洪水不过肩",
+    "source": "cache:cache.json",
+    "auto_answer": "枯水不淹足，洪水不过肩"
+  },
+  "7【多选题】益者三友，___、____、_____。": {
+    "answer": "友直\n友谅\n友多闻",
+    "source": "cache:cache.json",
+    "auto_answer": "友直\n友谅\n友多闻"
+  },
+  "4【单选题】都江堰的设计者和兴建者是我国战国时期杰出的水利工程学家________。": {
+    "answer": "李冰父子",
+    "source": "cache:cache.json",
+    "auto_answer": "李冰父子"
+  },
+  "8【判断题】荀子认为不学礼，无以立。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】赵州桥兴建于________朝。": {
+    "answer": "隋",
+    "source": "cache:cache.json",
+    "auto_answer": "隋"
+  },
+  "9【判断题】见利思义，是中华民族重要的传统美德。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "5【单选题】飞沙堰采用竹笼装卵石的办法堆砌，堰顶垒到比较合适的高度，起________的作用。": {
+    "answer": "调节水量",
+    "source": "cache:cache.json",
+    "auto_answer": "调节水量"
+  },
+  "10【判断题】儒家认为，谦让是一种高尚的道德行为，是君子应当具备的道德品质。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "6【多选题】都江堰水利工程有哪些作用（ ）": {
+    "answer": "防洪\n灌溉\n航运",
+    "source": "cache:cache.json",
+    "auto_answer": "防洪\n灌溉\n航运"
+  },
+  "7【多选题】都江堰水利工程由哪三个主要工程组成（ ）": {
+    "answer": "宝瓶口\n分水鱼嘴\n飞沙堰",
+    "source": "cache:cache.json",
+    "auto_answer": "宝瓶口\n分水鱼嘴\n飞沙堰"
+  },
+  "8【判断题】都江堰是全世界迄今为止年代最久、唯一留存、仍在使用、以无堤引水为特征的宏大水利工程。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "2【单选题】下列关于赵州桥的说法错误的是（    ）。": {
+    "answer": "赵州桥总计51米长，宽度达到10米。",
+    "source": "cache:cache.json",
+    "auto_answer": "赵州桥总计51米长，宽度达到10米。"
+  },
+  "9【判断题】传说中的大禹顺应自然规律，按照水的特性，改以前单纯用堵得方法为疏导的办法，取得了成功。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】早在_________多年以前，我国就有了世界上古老的文字之一——汉字。": {
+    "answer": "3000",
+    "source": "cache:cache.json",
+    "auto_answer": "3000"
+  },
+  "10【判断题】2008年，都江堰被联合国教科文组织列入世界文化遗产名录。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "3【单选题】在修建钱塘江大桥之际，国际形势变幻莫测，我国和（ ）关系尤为紧张。": {
+    "answer": "日本",
+    "source": "cache:cache.json",
+    "auto_answer": "日本"
+  },
+  "4【单选题】20世纪30年代， __________主持设计并组织修建了钱塘江大桥。": {
+    "answer": "茅以升",
+    "source": "cache:cache.json",
+    "auto_answer": "茅以升"
+  },
+  "5【单选题】钱塘江大桥修建过程中，成功突破了（ ）个技术难题。": {
+    "answer": "80多",
+    "source": "cache:cache.json",
+    "auto_answer": "80多"
+  },
+  "3【单选题】在造纸术发明的初期，造纸原料主要是________和破布。": {
+    "answer": "树皮",
+    "source": "cache:cache.json",
+    "auto_answer": "树皮"
+  },
+  "4【单选题】造纸术东传至朝鲜、日本的时间是_________": {
+    "answer": "公元7世纪初期",
+    "source": "cache:cache.json",
+    "auto_answer": "公元7世纪初期"
+  },
+  "5【单选题】蔡伦改进的造纸术，又称_______________": {
+    "answer": "蔡侯纸",
+    "source": "cache:cache.json",
+    "auto_answer": "蔡侯纸"
+  },
+  "6【多选题】我国公路行业最高质量奖有（ ）": {
+    "answer": "詹天佑奖\n鲁班奖\n李春奖",
+    "source": "cache:cache.json",
+    "auto_answer": "詹天佑奖\n鲁班奖\n李春奖"
+  },
+  "6【多选题】下面哪几种材料曾被宋元明清时期制纸工艺选用？": {
+    "answer": "楮木\n苎麻\n大麻\n竹子\n桑皮",
+    "source": "cache:cache.json",
+    "auto_answer": "楮木\n苎麻\n大麻\n竹子\n桑皮"
+  },
+  "7【多选题】下列哪些方法是在钱塘江大桥建设过程独创的方法（ ）": {
+    "answer": "射水法\n气压沉箱法\n浮运法",
+    "source": "cache:cache.json",
+    "auto_answer": "射水法\n气压沉箱法\n浮运法"
+  },
+  "8【判断题】一般情况下，大桥的架梁方法是伸臂法，这一方法同样适用于钱塘江大桥。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "9【判断题】宋朝时期，李春奉命在赵县修建赵州桥。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "7【多选题】下列那种不属于唐代出现的纸张类型？": {
+    "answer": "麻质纤维纸\n冷金纸",
+    "source": "cache:cache.json",
+    "auto_answer": "麻质纤维纸\n冷金纸"
+  },
+  "10【判断题】在赵州桥选址时，李春认为应该从易建筑，在水流跨度最小的地方建造。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "8【判断题】竹简是我国历史上使用时间最长的书籍形式，是纸普及之前主要的书写工具。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "9【判断题】东汉时期蔡伦发明了造纸术，这是书写材料的一次革命。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】雕版印刷术最早出现在（ ）": {
+    "answer": "唐朝",
+    "source": "cache:cache.json",
+    "auto_answer": "唐朝"
+  },
+  "10【判断题】宣纸在唐朝时期得以巨大发展，成为家喻户晓的名纸。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "2【单选题】沈括在《梦溪笔谈》卷十八《技艺门》中详细记载了毕昇的（ ）": {
+    "answer": "胶泥活字印刷术",
+    "source": "cache:cache.json",
+    "auto_answer": "胶泥活字印刷术"
+  },
+  "3【单选题】元朝初年，________在木活字印刷方面又做出了独特的贡献。": {
+    "answer": "王祯",
+    "source": "cache:cache.json",
+    "auto_answer": "王祯"
+  },
+  "4【单选题】________________被称为“当代毕昇”。": {
+    "answer": "王选",
+    "source": "cache:cache.json",
+    "auto_answer": "王选"
+  },
+  "5【单选题】_______________是我国第一部激光汉字照排图书。": {
+    "answer": "《伍豪之剑》",
+    "source": "cache:cache.json",
+    "auto_answer": "《伍豪之剑》"
+  },
+  "6【多选题】王选院士长期致力于哪些方面的计算机处理研究，并应用自己的发明成果开发汉字激光照排系统？": {
+    "answer": "图形\n图像\n文字",
+    "source": "cache:cache.json",
+    "auto_answer": "图形\n图像\n文字"
+  },
+  "7【多选题】古代印刷术可分为哪三种（   ）": {
+    "answer": "雕版印刷\n活字印刷\n套版印刷",
+    "source": "cache:cache.json",
+    "auto_answer": "雕版印刷\n活字印刷\n套版印刷"
+  },
+  "8【判断题】活字印刷术在元代得到了进一步发展，除了泥活字，人们又尝试了木、铜、锡等原料制造活字。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "9【判断题】1979年，精密汉字照排系统的第一台样机调试完成。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】王选推动了中国印刷技术的变革，他攻克了汉字激光照排的世界性难题。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】都江堰的设计者和兴建者是我国战国时期杰出的水利工程学家________。": {
+    "answer": "李冰",
+    "source": "cache:cache.json",
+    "auto_answer": "李冰"
+  },
+  "3【单选题】早在_________多年以前，我国就有了世界上古老的文字之一——汉字。": {
+    "answer": "4000",
+    "source": "cache:cache.json",
+    "auto_answer": "4000"
+  },
+  "4【单选题】蔡伦改进的造纸术，又称_______________": {
+    "answer": "蔡侯纸",
+    "source": "cache:cache.json",
+    "auto_answer": "蔡侯纸"
+  },
+  "5【单选题】雕版印刷术最早出现在（ ）": {
+    "answer": "唐朝",
+    "source": "cache:cache.json",
+    "auto_answer": "唐朝"
+  },
+  "6【多选题】下列那种不属于唐代出现的纸张类型？": {
+    "answer": "麻质纤维纸\n冷金纸",
+    "source": "cache:cache.json",
+    "auto_answer": "麻质纤维纸\n冷金纸"
+  },
+  "9【判断题】宣纸在唐朝时期得以巨大发展，成为家喻户晓的名纸。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "10【判断题】活字印刷术在元代得到了进一步发展，除了泥活字，人们又尝试了木、铜、锡等原料制造活字。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】我国第一部天文学著作是________": {
+    "answer": "《甘石星经》",
+    "source": "cache:cache.json",
+    "auto_answer": "《甘石星经》"
+  },
+  "2【单选题】哪个国家是天文观测记录持续时间最长的国家？": {
+    "answer": "中国",
+    "source": "cache:cache.json",
+    "auto_answer": "中国"
+  },
+  "3【单选题】哪个朝代开始，天象观测逐步有了官方的支持？": {
+    "answer": "商代",
+    "source": "cache:cache.json",
+    "auto_answer": "商代"
+  },
+  "4【单选题】哪个学说是中国最古老的宇宙学说，大约商代时期就已经出现？": {
+    "answer": "盖天说",
+    "source": "cache:cache.json",
+    "auto_answer": "盖天说"
+  },
+  "5【单选题】 东汉时期，________撰写《浑仪注》，对浑天说进行了说明。": {
+    "answer": "张衡",
+    "source": "cache:cache.json",
+    "auto_answer": "张衡"
+  },
+  "6【多选题】表是迄今为止最古老的天文仪器，除确定方位外，还有哪些功能？": {
+    "answer": "判断时刻\n判断夏冬至日",
+    "source": "cache:cache.json",
+    "auto_answer": "判断时刻\n判断夏冬至日"
+  },
+  "1【单选题】干支纪年法，用十个天干名配十二个地支名，组成多少干支？": {
+    "answer": "60",
+    "source": "cache:cache.json",
+    "auto_answer": "60"
+  },
+  "2【单选题】二十四节气在什么时期已经在我国的历法体系中基本齐备？": {
+    "answer": "战国",
+    "source": "cache:cache.json",
+    "auto_answer": "战国"
+  },
+  "7【多选题】古人在天文观测中最常见的工具有___________？": {
+    "answer": "表\n象\n仪",
+    "source": "cache:cache.json",
+    "auto_answer": "表\n象\n仪"
+  },
+  "3【单选题】到了商朝，人们将太阳、月亮的变化周期应用于历法，发明了哪种历法？": {
+    "answer": "阴阳合历",
+    "source": "cache:cache.json",
+    "auto_answer": "阴阳合历"
+  },
+  "4【单选题】西周时期，人们开始将每天分为________个时辰。": {
+    "answer": "12",
+    "source": "cache:cache.json",
+    "auto_answer": "12"
+  },
+  "8【判断题】从春秋时期到清朝灭亡，中国关于彗星的记载有500多次。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "5【单选题】北宋时期，________提出了最富革新的历法——十二气历。": {
+    "answer": "沈括",
+    "source": "cache:cache.json",
+    "auto_answer": "沈括"
+  },
+  "6【多选题】夏代哪些帝王名能有力证明天干地支纪日？": {
+    "answer": "孔甲\n胤甲\n履癸",
+    "source": "cache:cache.json",
+    "auto_answer": "孔甲\n胤甲\n履癸"
+  },
+  "9【判断题】张衡关于地球是圆形的见解，比欧洲早了100多年。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "7【多选题】“一月”还有哪些别称？": {
+    "answer": "正月\n元月\n端月",
+    "source": "cache:cache.json",
+    "auto_answer": "正月\n元月\n端月"
+  },
+  "8【判断题】郭守敬主持并参加了全国范围的天文观测，建立了27个观测点。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "9【判断题】四分历标志着我国历法已经进入成熟阶段。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】明代杰出的数学家和天文学家祖冲之，编制了大明历。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "10【判断题】徐光启是我国历史上首位提出建造望远镜并通过望远镜观看天体。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】在我国，大约_______年前，人们已经驯化了狗。": {
+    "answer": "15000",
+    "source": "cache:cache.json",
+    "auto_answer": "15000"
+  },
+  "2【单选题】传说中的________因为交给人们畜牧和种植的方法而被尊为农业的始祖。": {
+    "answer": "神农氏",
+    "source": "cache:cache.json",
+    "auto_answer": "神农氏"
+  },
+  "3【单选题】什么时期，黄河中下游地区成为我国的经济文化中心？": {
+    "answer": "商周时期",
+    "source": "cache:cache.json",
+    "auto_answer": "商周时期"
+  },
+  "4【单选题】商周时期形成________制，阡陌纵横，形同“井”字。": {
+    "answer": "井田",
+    "source": "cache:cache.json",
+    "auto_answer": "井田"
+  },
+  "5【单选题】《_______》是6世纪中国最完整、最系统、内容最丰富的农学百科全书。": {
+    "answer": "齐民要术",
+    "source": "cache:cache.json",
+    "auto_answer": "齐民要术"
+  },
+  "1【单选题】传说中最早治理特大洪水、平息水患的部落联盟首领是_______。": {
+    "answer": "禹",
+    "source": "cache:cache.json",
+    "auto_answer": "禹"
+  },
+  "2【单选题】大禹治水的方法是_________。": {
+    "answer": "疏导",
+    "source": "cache:cache.json",
+    "auto_answer": "疏导"
+  },
+  "6【多选题】原始农具包括哪些？": {
+    "answer": "石铲\n石斧",
+    "source": "cache:cache.json",
+    "auto_answer": "石铲\n石斧"
+  },
+  "3【单选题】郑国渠是由战国时期韩国著名水利工程专家________设计修建的。": {
+    "answer": "郑国",
+    "source": "cache:cache.json",
+    "auto_answer": "郑国"
+  },
+  "7【多选题】张骞出使西域后，引进了哪些农作物？": {
+    "answer": "黄瓜\n香菜\n大蒜",
+    "source": "cache:cache.json",
+    "auto_answer": "黄瓜\n香菜\n大蒜"
+  },
+  "4【单选题】(填空题)魏晋南北朝时期，人口大量南移，农田水利建设的重点转移到了________地区。": {
+    "answer": "江淮",
+    "source": "cache:cache.json",
+    "auto_answer": "江淮"
+  },
+  "8【判断题】我国是世界上最早培植粟的国家。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "5【单选题】世界上最长的人工运河是___________。": {
+    "answer": "京杭大运河",
+    "source": "cache:cache.json",
+    "auto_answer": "京杭大运河"
+  },
+  "9【判断题】垸田的开发，使得两湖地区成了新的谷仓，以至于在明代中期以后就有了“湖广熟，天下足”的说法。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】《王祯农书》是中国杰出农学家贾思勰所著的一部综合性农学著作。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "2【单选题】哪个学说是中国最古老的宇宙学说，大约商代时期就已经出现？": {
+    "answer": "盖天说",
+    "source": "cache:cache.json",
+    "auto_answer": "盖天说"
+  },
+  "6【多选题】秦朝修建了哪些杰出的水利工程？": {
+    "answer": "都江堰\n郑国渠\n灵渠",
+    "source": "cache:cache.json",
+    "auto_answer": "都江堰\n郑国渠\n灵渠"
+  },
+  "3【单选题】西周时期，人们开始将每天分为________个时辰。": {
+    "answer": "12",
+    "source": "cache:cache.json",
+    "auto_answer": "12"
+  },
+  "5【单选题】大禹治水的方法是_________。": {
+    "answer": "疏导",
+    "source": "cache:cache.json",
+    "auto_answer": "疏导"
+  },
+  "7【多选题】尧帝最早任命谁负责治水？": {
+    "answer": "共工\n鲧",
+    "source": "cache:cache.json",
+    "auto_answer": "共工\n鲧"
+  },
+  "6【多选题】古人在天文观测中最常见的工具有___________？": {
+    "answer": "表\n象\n仪",
+    "source": "cache:cache.json",
+    "auto_answer": "表\n象\n仪"
+  },
+  "8【判断题】唐代制定了现存最早的全国通行的水利法规——《水部式》。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "9【判断题】鲧在治水期间，三过家门而不同，这深深影响了禹。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "8【判断题】明代杰出的数学家和天文学家祖冲之，编制了大明历。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "10【判断题】原始社会末期，人们在农业生产过程中开始主动地防水治水。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】唐代制定了现存最早的全国通行的水利法规——《水部式》。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】加强语句内在联系的停连是________": {
+    "answer": "呼应性停连",
+    "source": "cache:cache.json",
+    "auto_answer": "呼应性停连"
+  },
+  "2【单选题】我们把朗读时的抑扬顿挫、轻重缓急的声音形式的回环往复称为_______": {
+    "answer": "节奏",
+    "source": "cache:cache.json",
+    "auto_answer": "节奏"
+  },
+  "3【单选题】声音较压抑、顿挫较多、语速偏慢的节奏属于下面哪种类型。": {
+    "answer": "凝重型",
+    "source": "cache:cache.json",
+    "auto_answer": "凝重型"
+  },
+  "4【单选题】诵读前要把握作品内容，理解作品________。": {
+    "answer": "主题",
+    "source": "cache:cache.json",
+    "auto_answer": "主题"
+  },
+  "5【单选题】 ________是汉民族共同语。": {
+    "answer": "普通话",
+    "source": "cache:cache.json",
+    "auto_answer": "普通话"
+  },
+  "6【多选题】下列各选项中属于一般停连位置的是________": {
+    "answer": "区分性停连\n呼应性停连\n并列性停连\n分合性停连",
+    "source": "cache:cache.json",
+    "auto_answer": "区分性停连\n呼应性停连\n并列性停连\n分合性停连"
+  },
+  "7【多选题】朗诵中常见的语气形式有________": {
+    "answer": "高升调\n降抑调\n平直调\n曲折调",
+    "source": "cache:cache.json",
+    "auto_answer": "高升调\n降抑调\n平直调\n曲折调"
+  },
+  "8【判断题】诵读时要从作品本身出发，不需要展开更为细致的想象。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "9【判断题】在一篇作品中，节奏往往是以一种类型为主，其他类型渗透其中。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】语气由两个方面构成，即一定的具体思想感情和一定的具体声音形式。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】下面三个停顿符号中，用于表示时间停顿很短的是________": {
+    "answer": "/",
+    "source": "cache:cache.json",
+    "auto_answer": "/"
+  },
+  "2【单选题】表示语气渐强的诵读符号是________": {
+    "answer": "<",
+    "source": "cache:cache.json",
+    "auto_answer": "<"
+  },
+  "3【单选题】“烟〖笼〗／寒水／月〖笼〗沙”一句中，符号“〖〗”表示________": {
+    "answer": "重音",
+    "source": "cache:cache.json",
+    "auto_answer": "重音"
+  },
+  "4【单选题】设计诵读方案的目标是通过语音的具体形象把诵读作品的________表达出来。": {
+    "answer": "思想感情",
+    "source": "cache:cache.json",
+    "auto_answer": "思想感情"
+  },
+  "5【单选题】在表示诵读停顿的符号中，“/”的停顿时间比“//”的停顿时间_______。": {
+    "answer": "短",
+    "source": "cache:cache.json",
+    "auto_answer": "短"
+  },
+  "6【多选题】诵读的步骤包括________": {
+    "answer": "清除文字障碍\n熟悉诵读作品\n设计诵读方案",
+    "source": "cache:cache.json",
+    "auto_answer": "清除文字障碍\n熟悉诵读作品\n设计诵读方案"
+  },
+  "7【多选题】确定一部作品诵读基调的依据有________": {
+    "answer": "文体\n题材\n语言风格",
+    "source": "cache:cache.json",
+    "auto_answer": "文体\n题材\n语言风格"
+  },
+  "8【判断题】诵读诗词要清除文字障碍，正确读出每个字音，做到口齿清楚、咬字清晰。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "9【判断题】我们诵读古诗词时不必对其时代背景太在意。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "10【判断题】诵读古典诗词时根据文体、题材和语言⻛格来确定诵读的基调。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】我们把朗读时的抑扬顿挫、轻重缓急的声音形式的回环往复称为_______": {
+    "answer": "节奏",
+    "source": "cache:cache.json",
+    "auto_answer": "节奏"
+  },
+  "2【单选题】诵读前要把握作品内容，理解作品________。": {
+    "answer": "主题",
+    "source": "cache:cache.json",
+    "auto_answer": "主题"
+  },
+  "3【单选题】 ________是汉民族共同语。": {
+    "answer": "普通话",
+    "source": "cache:cache.json",
+    "auto_answer": "普通话"
+  },
+  "4【单选题】表示语气渐强的诵读符号是________": {
+    "answer": "<",
+    "source": "cache:cache.json",
+    "auto_answer": "<"
+  },
+  "5【单选题】下面三个停顿符号中，用于表示时间停顿很短的是________": {
+    "answer": "/",
+    "source": "cache:cache.json",
+    "auto_answer": "/"
+  },
+  "6【多选题】朗诵中常见的语气形式有________": {
+    "answer": "高升调\n降抑调\n平直调\n曲折调",
+    "source": "cache:cache.json",
+    "auto_answer": "高升调\n降抑调\n平直调\n曲折调"
+  },
+  "10【判断题】我们诵读古诗词时不必对其时代背景太在意。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】唐代陆羽著成________一书，成为我国茶文化形成的标志。": {
+    "answer": "《茶经》",
+    "source": "cache:cache.json",
+    "auto_answer": "《茶经》"
+  },
+  "2【单选题】世界茶树的原产地是__________。": {
+    "answer": "中国",
+    "source": "cache:cache.json",
+    "auto_answer": "中国"
+  },
+  "3【单选题】我国少数民族地区都有饮茶习惯，其中“三道茶”是（ ）的饮茶习俗。": {
+    "answer": "白族",
+    "source": "cache:cache.json",
+    "auto_answer": "白族"
+  },
+  "1【单选题】不寄他人先寄我，应缘我是别茶人。”这句诗句的作者是________。": {
+    "answer": "白居易",
+    "source": "cache:cache.json",
+    "auto_answer": "白居易"
+  },
+  "4【单选题】优绿茶的泡茶水温一般在________为宜。": {
+    "answer": "80℃~90℃",
+    "source": "cache:cache.json",
+    "auto_answer": "80℃~90℃"
+  },
+  "2【单选题】“何须魏帝一丸药”的下联是________________。": {
+    "answer": "且尽卢仝七碗茶",
+    "source": "cache:cache.json",
+    "auto_answer": "且尽卢仝七碗茶"
+  },
+  "5【单选题】我国的“斗茶”始于______。": {
+    "answer": "唐朝",
+    "source": "cache:cache.json",
+    "auto_answer": "唐朝"
+  },
+  "6【多选题】中国茶叶主要产区包括（ ）": {
+    "answer": "西南茶区\n江北茶区\n江南茶区\n华南茶区",
+    "source": "cache:cache.json",
+    "auto_answer": "西南茶区\n江北茶区\n江南茶区\n华南茶区"
+  },
+  "4【单选题】我国宋代女词人李清照与丈夫赵明诚“赌书泼茶”，后人称之为_________ 。": {
+    "answer": "茶令",
+    "source": "cache:cache.json",
+    "auto_answer": "茶令"
+  },
+  "5【单选题】________既可以指茶的礼仪，还可以指茶的礼品，是古代中国的传统婚姻习俗。": {
+    "answer": "茶礼",
+    "source": "cache:cache.json",
+    "auto_answer": "茶礼"
+  },
+  "7【多选题】以下选项中，属于炒青绿茶的是（ ）。": {
+    "answer": "蒙顶甘露\n安吉白茶",
+    "source": "cache:cache.json",
+    "auto_answer": "蒙顶甘露\n安吉白茶"
+  },
+  "6【多选题】茶的文化内涵五个组成部分_______ 、_______ 、_______ 、_______ 、_______ 。": {
+    "answer": "茶饮\n茶俗\n茶礼\n茶艺\n茶道",
+    "source": "cache:cache.json",
+    "auto_answer": "茶饮\n茶俗\n茶礼\n茶艺\n茶道"
+  },
+  "8【判断题】茶树按树型一般分为小叶种、中叶种和大叶种茶树。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "9【判断题】奉茶时要注意先后顺序，先长后幼，先客后主。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】中国画大多采用的构图方式是______": {
+    "answer": "散点透视",
+    "source": "cache:cache.json",
+    "auto_answer": "散点透视"
+  },
+  "2【单选题】适合水墨写意画的宣纸是______": {
+    "answer": "生宣",
+    "source": "cache:cache.json",
+    "auto_answer": "生宣"
+  },
+  "7【多选题】下面属于茶事礼仪的有_______ 、_______ 、_______ 、_______ 、_______ 。": {
+    "answer": "先客后主\n叩首礼\n茶三酒四\n无色茶\n响杯擦盘",
+    "source": "cache:cache.json",
+    "auto_answer": "先客后主\n叩首礼\n茶三酒四\n无色茶\n响杯擦盘"
+  },
+  "3【单选题】提出中国画的六法论的是______": {
+    "answer": "谢赫",
+    "source": "cache:cache.json",
+    "auto_answer": "谢赫"
+  },
+  "8【判断题】在我国传统民俗中拉祜族的“龙虎斗”是解表散寒的一味良药。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "4【单选题】________是衡量中国画好坏的首要标准。": {
+    "answer": "气韵生动",
+    "source": "cache:cache.json",
+    "auto_answer": "气韵生动"
+  },
+  "9【判断题】我国第一部专门论品茶用水的著作是张又新《煎茶水记》。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "5【单选题】中国画的颜料分成矿物颜料、________两种 。": {
+    "answer": "植物颜料",
+    "source": "cache:cache.json",
+    "auto_answer": "植物颜料"
+  },
+  "10【判断题】茶是世界三大无酒精饮料之一，年消耗量最大。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "6【多选题】以下属于中国画表现方法的有___________。": {
+    "answer": "用毛笔画\n用墨画\n用中国画颜料画\n在绢上宣纸上画",
+    "source": "cache:cache.json",
+    "auto_answer": "用毛笔画\n用墨画\n用中国画颜料画\n在绢上宣纸上画"
+  },
+  "7【多选题】适合画工笔画的宣纸是______ 。": {
+    "answer": "熟宣\n半生熟",
+    "source": "cache:cache.json",
+    "auto_answer": "熟宣\n半生熟"
+  },
+  "8【判断题】骨法用笔主要指的是对形象的表现。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "9【判断题】中国画妙在似与不似之间。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】中国人画的画就是中国画。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "1【单选题】不要“节外生枝”，指的是竹枝应从________处生出。": {
+    "answer": "竹节",
+    "source": "cache:cache.json",
+    "auto_answer": "竹节"
+  },
+  "2【单选题】竹枝______生长，一节向左，一节向右。": {
+    "answer": "交互",
+    "source": "cache:cache.json",
+    "auto_answer": "交互"
+  },
+  "3【单选题】画竹的顺序：先____，后____，再____，最后____。": {
+    "answer": "A竿 B节 C枝 D叶",
+    "source": "cache:cache.json",
+    "auto_answer": "A竿 B节 C枝 D叶"
+  },
+  "4【单选题】在墨色上，粗竹竿较淡，细竹竿较____。": {
+    "answer": "浓",
+    "source": "cache:cache.json",
+    "auto_answer": "浓"
+  },
+  "5【单选题】画竹子用笔与书法十分相似，竿如篆，节如隶，枝如草，叶如_____。": {
+    "answer": "楷",
+    "source": "cache:cache.json",
+    "auto_answer": "楷"
+  },
+  "6【多选题】画竹叶先学画单叶，有_____字法。": {
+    "answer": "个\n介\n人\n分",
+    "source": "cache:cache.json",
+    "auto_answer": "个\n介\n人\n分"
+  },
+  "7【多选题】画两个竹竿时，应该：______________。": {
+    "answer": "中锋用笔\n有墨色变化",
+    "source": "cache:cache.json",
+    "auto_answer": "中锋用笔\n有墨色变化"
+  },
+  "8【判断题】文人爱竹，是因为竹子有较高的实用价值。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "9【判断题】竹叶变化多端，层次繁复，要疏密得当，有主次、浓淡变化。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】古人画竹枝有些形象的比喻，如：雀爪枝、 鹿角枝、 鱼⻣枝等。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】东方插花起源于": {
+    "answer": "中国",
+    "source": "cache:cache.json",
+    "auto_answer": "中国"
+  },
+  "2【单选题】“佛花”起源于什么时期": {
+    "answer": "东汉",
+    "source": "cache:cache.json",
+    "auto_answer": "东汉"
+  },
+  "3【单选题】插花专著《瓶史》出自哪个时代": {
+    "answer": "明代",
+    "source": "cache:cache.json",
+    "auto_answer": "明代"
+  },
+  "4【单选题】“出淤泥而不染，濯清涟而不妖”，说的花材是___________。": {
+    "answer": "荷花",
+    "source": "cache:cache.json",
+    "auto_answer": "荷花"
+  },
+  "1【单选题】中国传统插花中的筒器源自我国________时期。": {
+    "answer": "五代",
+    "source": "cache:cache.json",
+    "auto_answer": "五代"
+  },
+  "2【单选题】适合庆典贺礼使用的花器是________。": {
+    "answer": "花篮",
+    "source": "cache:cache.json",
+    "auto_answer": "花篮"
+  },
+  "5【单选题】占景盘发明于__________。": {
+    "answer": "五代",
+    "source": "cache:cache.json",
+    "auto_answer": "五代"
+  },
+  "2【单选题】______是武术大发展时期，流派林立，武术理论不断丰富，不同⻛格的拳种和器械得到空前发展。": {
+    "answer": "明清",
+    "source": "cache:cache.json",
+    "auto_answer": "明清"
+  },
+  "6【多选题】下面哪些是中国传统插花的说法正确的是": {
+    "answer": "受到诗书画的文化影响，意境深远\n宋朝受理学影响，插花以清雅为主\n讲究协调统一，浑然天成的视觉效果",
+    "source": "cache:cache.json",
+    "auto_answer": "受到诗书画的文化影响，意境深远\n宋朝受理学影响，插花以清雅为主\n讲究协调统一，浑然天成的视觉效果"
+  },
+  "3【单选题】心象花也称________。": {
+    "answer": "文人花",
+    "source": "cache:cache.json",
+    "auto_answer": "文人花"
+  },
+  "7【多选题】中国插花历史悠久，插花这门艺术得以在我国发展的主要因素有": {
+    "answer": "我国地域跨度广\n花木资源丰富\n花卉栽培技术先进",
+    "source": "cache:cache.json",
+    "auto_answer": "我国地域跨度广\n花木资源丰富\n花卉栽培技术先进"
+  },
+  "3【单选题】武术中的集体表演由多少人以上进行？": {
+    "answer": "6",
+    "source": "cache:cache.json",
+    "auto_answer": "6"
+  },
+  "8【判断题】中国传统插花艺术一切都以自然美为最佳的艺术追求和表现，是人工美与自然美的巧妙结合。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "4【单选题】________是我国传统插花中最重要也是最富有特色的表现形式。": {
+    "answer": "瓶花",
+    "source": "cache:cache.json",
+    "auto_answer": "瓶花"
+  },
+  "4【单选题】对练包括______对练、器械对练、徒手和器械对练。": {
+    "answer": "徒手",
+    "source": "cache:cache.json",
+    "auto_answer": "徒手"
+  },
+  "9【判断题】中国传统插花追求以形传神、形神兼备、情景交融而深邃的意境美，通过运用花材的寓意和象征性，借以表达作品的主题内涵与神韵意趣。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "5【单选题】理念花源自________。": {
+    "answer": "宋代",
+    "source": "cache:cache.json",
+    "auto_answer": "宋代"
+  },
+  "5【单选题】唐宋时期，实行_______制，对武术的发展起到了促进作用。": {
+    "answer": "武举",
+    "source": "cache:cache.json",
+    "auto_answer": "武举"
+  },
+  "10【判断题】《瓶史》、《瓶花三说》、《瓶花谱》这三部有关插花的理论著作出自唐朝。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "6【多选题】中华武术按运动形式一般分为_________、_________和_________三大类。": {
+    "answer": "功法\n套路\n搏斗",
+    "source": "cache:cache.json",
+    "auto_answer": "功法\n套路\n搏斗"
+  },
+  "7【多选题】中国插花使用的花瓶根据质地可以分为哪些类型": {
+    "answer": "陶器\n瓷器\n玻璃\n木头",
+    "source": "cache:cache.json",
+    "auto_answer": "陶器\n瓷器\n玻璃\n木头"
+  },
+  "8【判断题】直立性插花时总体轮廓应保持高度大于宽度，呈直立的长方形状。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "7【多选题】器械代表包括__________，它们也是重点竞赛项目。": {
+    "answer": "刀\n剑\n枪\n棍",
+    "source": "cache:cache.json",
+    "auto_answer": "刀\n剑\n枪\n棍"
+  },
+  "8【判断题】武术具有内外合一，形神兼备的运动特点。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "9【判断题】插花时，花朵的位置不需要高低前后错开，可以在同一横线或直线上。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "9【判断题】长拳套路的技术核心是“四击”：踢、拿、摔、踹。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "10【判断题】瓶花具有一种崇高感和庄重感，善于表现花材的线条美，使用异形容器插花，易产生新颖感。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】刀术的运动特点是勇猛快速、刚劲有力、凶猛剽悍、气势逼人，有“刀如猛⻁”的比喻。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "1【单选题】武术中有“坐如_______、站如松、静如岳”之说。": {
+    "answer": "钟",
+    "source": "cache:cache.json",
+    "auto_answer": "钟"
+  },
+  "2【单选题】________既可以指茶的礼仪，还可以指茶的礼品，是古代中国的传统婚姻习俗。": {
+    "answer": "茶礼",
+    "source": "cache:cache.json",
+    "auto_answer": "茶礼"
+  },
+  "2【单选题】现代散打比赛始于_________。": {
+    "answer": "20世纪70年代",
+    "source": "cache:cache.json",
+    "auto_answer": "20世纪70年代"
+  },
+  "3【单选题】中国画大多采用的构图方式是______": {
+    "answer": "散点透视",
+    "source": "cache:cache.json",
+    "auto_answer": "散点透视"
+  },
+  "3【单选题】武术图解中的运动方向，是以图中人的躯干姿势为准，并且随着________所处的位置变化而变化。": {
+    "answer": "身体动作",
+    "source": "cache:cache.json",
+    "auto_answer": "身体动作"
+  },
+  "4【单选题】东方插花起源于": {
+    "answer": "中国",
+    "source": "cache:cache.json",
+    "auto_answer": "中国"
+  },
+  "4【单选题】为简化文字说明，方便记忆与交流，武术图解常使用________。": {
+    "answer": "动作路线",
+    "source": "cache:cache.json",
+    "auto_answer": "动作路线"
+  },
+  "5【单选题】2014年经国务院批准，通背拳被列入第____批国家级非物质文化遗产目录。": {
+    "answer": "四",
+    "source": "cache:cache.json",
+    "auto_answer": "四"
+  },
+  "7【多选题】中华武术按运动形式一般分为_________、_________和_________三大类。": {
+    "answer": "功法\n套路\n搏斗",
+    "source": "cache:cache.json",
+    "auto_answer": "功法\n套路\n搏斗"
+  },
+  "6【多选题】我们欣赏竞技武术套路主要看其所表现出来的_____美、_____美、_____美、_____美、劲力美、音乐美、服装美、意境美。": {
+    "answer": "形式\n静态\n动态\n造型",
+    "source": "cache:cache.json",
+    "auto_answer": "形式\n静态\n动态\n造型"
+  },
+  "8【判断题】奉茶时要注意先后顺序，先长后幼，先客后主。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "7【多选题】现代散打比赛中，确定比赛输赢有两种情况，一是______胜利，二是_____胜利。": {
+    "answer": "优势\n分数",
+    "source": "cache:cache.json",
+    "auto_answer": "优势\n分数"
+  },
+  "9【判断题】中国人画的画就是中国画。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "8【判断题】中国武术之美，深受中国古典美学的熏染，在武术比赛中得到了集中体现。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "10【判断题】中国武术之美，深受中国古典美学的熏染，在武术比赛中得到了集中体现。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
+  },
+  "9【判断题】武术图解的文字叙述，一般先写上肢，继而写明运动方向，再写下肢，最后注明目视方向。": {
+    "answer": "错误",
+    "source": "cache:cache.json",
+    "auto_answer": "错误"
+  },
+  "10【判断题】大连市全国闻名的通背拳之乡，至今已经历了近百年的传承。": {
+    "answer": "正确",
+    "source": "cache:cache.json",
+    "auto_answer": "正确"
   }
 }
